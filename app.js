@@ -1819,7 +1819,9 @@
   function prendrePhoto(id, phase, btn) {
     if (!S.assets && !DISTANT) return;
     var input = document.createElement("input");
-    input.type = "file"; input.accept = "image/*"; input.capture = "environment";
+    /* Pas d'attribut « capture » : il forcerait l'appareil photo et priverait
+       l'agent de sa galerie. Sans lui, le téléphone propose les deux. */
+    input.type = "file"; input.accept = "image/*";
     input.style.display = "none";
     document.body.appendChild(input);
     input.onchange = function () {

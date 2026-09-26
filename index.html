@@ -282,12 +282,19 @@ main{padding:var(--e4) var(--e4) 100px}
 .affiche img{width:100%; height:auto; display:block}
 .tournee-actions{display:flex; gap:var(--e2); margin:var(--e3) 0 0}
 .accueil{
-  position:fixed; inset:0; z-index:90; background:var(--fond); overflow-y:auto;
-  display:flex; align-items:center; justify-content:center; padding:20px 16px;
+  position:fixed; inset:0; z-index:90; background:var(--fond);
+  overflow-y:auto; -webkit-overflow-scrolling:touch;
+  display:flex; justify-content:center;
+  /* jamais align-items:center ici : un contenu plus haut que l'écran verrait
+     son sommet rogné, hors d'atteinte du défilement. La marge automatique
+     centre quand il y a la place, et laisse défiler quand il n'y en a pas. */
+  align-items:flex-start;
+  padding:16px 14px calc(16px + env(safe-area-inset-bottom));
 }
 .accueil-carte{
-  max-width:460px; width:100%; background:var(--surface); border:1px solid var(--trait);
-  border-radius:var(--r); box-shadow:var(--ombre-2); padding:22px;
+  max-width:460px; width:100%; margin:auto; background:var(--surface);
+  border:1px solid var(--trait); border-radius:var(--r);
+  box-shadow:var(--ombre-2); padding:20px;
 }
 .accueil-services{display:grid; grid-template-columns:repeat(3,1fr); gap:15px 10px; margin:0 0 20px}
 .accueil-services figure{
@@ -311,6 +318,17 @@ main{padding:var(--e4) var(--e4) 100px}
 @media (prefers-reduced-motion: reduce){
   .accueil-services figure,
   .accueil-plan{animation:none; opacity:1; transform:none}
+}
+/* Téléphones : tout doit tenir d'un regard, quitte à resserrer. */
+@media (max-height: 800px), (max-width: 400px){
+  .accueil-carte{padding:16px}
+  .accueil h1{font-size:21px}
+  .accueil-sous{font-size:12.5px; line-height:1.5; margin-bottom:13px}
+  .accueil-services{gap:11px 8px; margin-bottom:15px}
+  .accueil-services img{height:36px}
+  .accueil-services figcaption{font-size:9.5px}
+  .accueil-plan{margin-bottom:15px}
+  .accueil-liste{font-size:12.5px; line-height:1.6; margin-bottom:15px; padding-left:16px}
 }
 .accueil h1{font-size:24px; line-height:1.15; margin:0 0 9px; letter-spacing:-.02em}
 .accueil h1 span{color:var(--vert)}
@@ -800,8 +818,8 @@ main{padding:var(--e4) var(--e4) 100px}
     <div class="accueil-carte">
       <h1 id="accueilTitre">Écoles Propres <span>Kaolack</span></h1>
       <p class="accueil-sous">Suivi des opérations de nettoiement des établissements scolaires
-        de la commune de Kaolack — CSIG SONAGED, avec la Direction Générale du Cadre de Vie,
-        la Commune de Kaolack, le Service d'Hygiène, les Constructions scolaires et le Génie militaire.</p>
+        de la commune de Kaolack — la SONAGED, avec Cadre de Vie, la Commune de Kaolack,
+        le Service d'Hygiène, le Génie militaire et les Sapeurs-pompiers.</p>
       <div class="accueil-services" role="group" aria-label="Services concernés">
         <figure style="--i:0"><img src="logos/cadredevie.png" alt=""><figcaption>Cadre de Vie</figcaption></figure>
         <figure style="--i:1"><img src="logos/commune.png" alt=""><figcaption>Commune de Kaolack</figcaption></figure>
@@ -813,8 +831,7 @@ main{padding:var(--e4) var(--e4) 100px}
       <figure class="accueil-plan">
         <img src="cartes/situation-generale.jpg" width="1400" height="865"
              alt="Carte de la commune de Kaolack : quartiers des tournées J1, J2 et J3, et position des écoles concernées">
-        <figcaption>Zone d'intervention — quartiers des tournées J1, J2 et J3, et les écoles
-          relevées au GPS. Fond OpenStreetMap, réalisation CESIG SONAGED Kaolack.</figcaption>
+        <figcaption>Localisation des écoles</figcaption>
       </figure>
       <ul class="accueil-liste">
         <li><b>48 établissements</b> relevés au GPS, 181 interventions à pointer.</li>

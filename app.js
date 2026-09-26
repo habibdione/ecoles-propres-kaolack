@@ -1358,6 +1358,114 @@
     }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 120000 });
   }
 
+  /* ---------------- correspondant de l'établissement ----------------
+     Le référent de l'école — directeur, surveillant, délégué — et son numéro.
+     Ils vivent dans le document partagé : saisis une fois depuis un téléphone,
+     ils sont connus de tous les agents. */
+  var CORR_EDITION = false;   // la fiche ouverte montre-t-elle la saisie ?
+
+  function correspondantDe(id) {
+    var c = suiviDe(id).correspondant;
+    return (c && typeof c === "object") ? c : { nom: "", tel: "" };
+  }
+
+  /* Un numéro sénégalais se compose à neuf chiffres, mais les liens d'appel et
+     de WhatsApp veulent la forme internationale. */
+  function telInternational(tel) {
+    var n = String(tel || "").replace(/[^\d+]/g, "");
+    if (!n) return "";
+    if (n.charAt(0) === "+") return n;
+    if (n.indexOf("00") === 0) return "+" + n.slice(2);
+    if (n.indexOf("221") === 0) return "+" + n;
+    if (n.length === 9) return "+221" + n;
+    return "+" + n;
+  }
+
+  function blocCorrespondant(id) {
+    var c = correspondantDe(id);
+    var bloc = el("div", "bloc");
+    var titre = el("div", "bloc-titre");
+    titre.appendChild(el("span", null, "Correspondant de l'établissement"));
+    bloc.appendChild(titre);
+
+    if (!CORR_EDITION) {
+      if (!c.tel && !c.nom) {
+        var ajout = el("button", "btn large", "Ajouter le correspondant");
+        ajout.type = "button";
+        if (S.peutEcrire === false) ajout.disabled = true;
+        ajout.onclick = function () { CORR_EDITION = true; ouvrirFiche(id, true); };
+        bloc.appendChild(ajout);
+        bloc.appendChild(el("p", "note-pied", "Le référent de l'école et son numéro : "
+          + "directeur, surveillant général ou délégué. Renseignés une fois, ils servent "
+          + "à toutes les équipes qui passeront ensuite."));
+        return bloc;
+      }
+
+      var carte = el("div", "corr-fiche");
+      if (c.nom) carte.appendChild(el("div", "corr-nom", c.nom));
+      if (c.tel) carte.appendChild(el("div", "corr-tel mono", c.tel));
+      bloc.appendChild(carte);
+
+      if (c.tel) {
+        var num = telInternational(c.tel);
+        var actions = el("div", "tournee-actions");
+        var appel = el("a", "btn plein large", "Appeler");
+        appel.href = "tel:" + num;
+        actions.appendChild(appel);
+        var wa = el("a", "btn large", "WhatsApp");
+        wa.href = "https://wa.me/" + num.replace(/\D/g, "");
+        wa.target = "_blank";
+        wa.rel = "noopener noreferrer";
+        actions.appendChild(wa);
+        bloc.appendChild(actions);
+      }
+
+      var modif = el("button", "btn large", "Modifier");
+      modif.type = "button";
+      modif.style.marginTop = "var(--e2)";
+      if (S.peutEcrire === false) modif.disabled = true;
+      modif.onclick = function () { CORR_EDITION = true; ouvrirFiche(id, true); };
+      bloc.appendChild(modif);
+      return bloc;
+    }
+
+    var nom = el("input", "date-champ");
+    nom.type = "text"; nom.value = c.nom || "";
+    nom.placeholder = "Nom du correspondant";
+    nom.autocomplete = "name";
+    var rn = el("div", "date-rangee"); rn.appendChild(nom); bloc.appendChild(rn);
+
+    var tel = el("input", "date-champ");
+    tel.type = "tel"; tel.value = c.tel || "";
+    tel.placeholder = "77 123 45 67";
+    tel.inputMode = "tel"; tel.autocomplete = "tel";
+    var rt = el("div", "date-rangee");
+    rt.style.marginTop = "9px";
+    rt.appendChild(tel);
+    bloc.appendChild(rt);
+
+    var act = el("div", "tournee-actions");
+    var ok = el("button", "btn plein large", "Enregistrer");
+    ok.type = "button";
+    ok.onclick = function () {
+      var n = nom.value.trim(), t = tel.value.trim();
+      majSuivi(id, function (doc) {
+        if (!n && !t) delete doc.correspondant;
+        else doc.correspondant = { nom: n, tel: t };
+      });
+      CORR_EDITION = false;
+      ouvrirFiche(id, true);
+      toast(n || t ? "Correspondant enregistré." : "Correspondant retiré.");
+    };
+    act.appendChild(ok);
+    var annul = el("button", "btn", "Annuler");
+    annul.type = "button";
+    annul.onclick = function () { CORR_EDITION = false; ouvrirFiche(id, true); };
+    act.appendChild(annul);
+    bloc.appendChild(act);
+    return bloc;
+  }
+
   /* ---------------- fiche école ---------------- */
   function fermerFiche() {
     if (depiler("fiche")) return;
@@ -1380,6 +1488,7 @@
     var ancien = $("#ficheEcole");
     if (ancien) { garde = ancien.scrollTop; ancien.remove(); }
     if (!S.fiche) empiler("fiche", fermerFicheReel);
+    if (S.fiche !== id) CORR_EDITION = false;
     S.fiche = id;
     document.body.style.overflow = "hidden";
     var d = suiviDe(id), b = bilanEcole(e);
@@ -1467,6 +1576,8 @@
         (ecart === 0 ? " — aujourd'hui" : ecart === 1 ? " — demain" : ecart > 0 ? " — dans " + ecart + " jours" : " — passée")));
     }
     inner.appendChild(bd);
+
+    inner.appendChild(blocCorrespondant(id));
 
     /* interventions groupées par service pilote */
     var bloc = el("div", "bloc");

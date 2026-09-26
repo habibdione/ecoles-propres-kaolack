@@ -973,7 +973,7 @@
 
     var carte = el("div", "affiche-carte");
     var ent = el("div", "affiche-logos");
-    [["logos/cadredevie.png", "Direction Générale du Cadre de Vie"],
+    [["logos/cadredevie.png", "Cadre de Vie"],
      ["logos/commune.png", "Commune de Kaolack"],
      ["logos/sonaged.png", "SONAGED"]].forEach(function (p) {
       var c = el("span", "affiche-logo");
@@ -2443,7 +2443,7 @@
     var bd = el("div", "bloc");
     bd.appendChild(el("div", "bloc-titre")).appendChild(el("span", null, "Dispositif"));
     var disp = el("div", "dispositif");
-    [["logos/cadredevie.png", "Direction Générale du Cadre de Vie", "Tutelle du programme de nettoiement"],
+    [["logos/cadredevie.png", "Cadre de Vie", "Tutelle du programme de nettoiement"],
     ["logos/sonaged.png", "SONAGED", "Élagage, désherbage, enlèvement et dépôt des déchets"],
     ["logos/hygiene.png", "Service d'Hygiène", "Pompage, curages, eaux stagnantes, traitement anti-larvaire"],
     ["logos/commune.png", "Commune de Kaolack", "Maîtrise d'ouvrage · nivellement, remblais, dallage"],

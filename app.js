@@ -1927,35 +1927,73 @@
     });
   }
 
+  function bilanEnvoi(faits, rates, refus, phase) {
+    var quoi = phase === "avant" ? "avant" : "après";
+    if (faits && !rates) {
+      return faits > 1 ? faits + " photos " + quoi + " enregistrées."
+                       : "Photo " + quoi + " enregistrée.";
+    }
+    if (faits && rates) {
+      return faits + " enregistrée" + (faits > 1 ? "s" : "") + ", "
+           + rates + " en échec — réessayez.";
+    }
+    if (refus) return "Droits insuffisants pour ajouter une photo.";
+    return rates > 1 ? "Envoi impossible pour les " + rates + " photos — réessayez."
+                     : "Envoi impossible — réessayez.";
+  }
+
   function prendrePhoto(id, phase, btn) {
     if (!S.assets && !DISTANT) return;
+    var libelle = phase === "avant" ? "Photo avant" : "Photo après";
     var input = document.createElement("input");
     /* Pas d'attribut « capture » : il forcerait l'appareil photo et priverait
        l'agent de sa galerie. Sans lui, le téléphone propose les deux. */
     input.type = "file"; input.accept = "image/*";
+    input.multiple = true;   /* une tournée se photographie rarement en un cliché */
     input.style.display = "none";
     document.body.appendChild(input);
+
     input.onchange = function () {
-      var file = input.files && input.files[0];
+      var fichiers = Array.prototype.slice.call(input.files || []);
       input.remove();
-      if (!file) return;
-      btn.disabled = true; btn.textContent = "Envoi…";
-      compresser(file).then(function (blob) {
-        return S.assets
-          ? S.assets.upload(blob, { type: "image/jpeg" }).then(function (res) { return { a: res.id }; })
-          : deposerPhoto(id, phase, blob);
-      }).then(function (ref) {
-        majSuivi(id, function (doc) {
-          if (!doc.photos) doc.photos = [];
-          doc.photos.push({ u: ref.u, a: ref.a, ph: phase, par: S.moi || "",
-                            le: new Date().toISOString() });
-        });
-        toast("Photo " + (phase === "avant" ? "avant" : "après") + " enregistrée.");
-        ouvrirFiche(id, true);
-      }).catch(function (err) {
-        btn.disabled = false; btn.textContent = phase === "avant" ? "Photo avant" : "Photo après";
-        toast(err && err.code === "not_granted" ? "Droits insuffisants pour ajouter une photo." : "Envoi impossible — réessayez.");
-      });
+      if (!fichiers.length) return;
+      btn.disabled = true;
+      var faits = 0, rates = 0, refus = false;
+
+      /* Un envoi après l'autre, jamais de front : sur une liaison de terrain,
+         cinq requêtes simultanées se gênent plus qu'elles ne s'entraident.
+         Chaque photo reçue est inscrite aussitôt dans la fiche : si la liaison
+         lâche au troisième cliché, les deux premiers sont déjà acquis. */
+      function envoyerUne(i) {
+        if (i >= fichiers.length) return terminer();
+        btn.textContent = fichiers.length > 1
+          ? "Envoi " + (i + 1) + "/" + fichiers.length + "…"
+          : "Envoi…";
+        return compresser(fichiers[i]).then(function (blob) {
+          return S.assets
+            ? S.assets.upload(blob, { type: "image/jpeg" }).then(function (res) { return { a: res.id }; })
+            : deposerPhoto(id, phase, blob);
+        }).then(function (ref) {
+          faits++;
+          majSuivi(id, function (doc) {
+            if (!doc.photos) doc.photos = [];
+            doc.photos.push({ u: ref.u, a: ref.a, ph: phase, par: S.moi || "",
+                              le: new Date().toISOString() });
+          });
+        }).catch(function (err) {
+          rates++;
+          if (err && err.code === "not_granted") refus = true;
+        }).then(function () { return envoyerUne(i + 1); });
+      }
+
+      function terminer() {
+        btn.disabled = false;
+        btn.textContent = libelle;
+        toast(bilanEnvoi(faits, rates, refus, phase));
+        if (faits) ouvrirFiche(id, true);
+      }
+
+      envoyerUne(0);
     };
     input.click();
   }

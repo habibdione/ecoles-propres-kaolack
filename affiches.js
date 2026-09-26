@@ -1,0 +1,1 @@
+window.KLAF=[{"f":"affiches/2026-09-23_24.jpg","d":["2026-09-23","2026-09-24"],"t":"Programme des mercredi 23 et jeudi 24 septembre"},{"f":"affiches/2026-09-26.jpg","d":["2026-09-26"],"t":"Programme du samedi 26 septembre"},{"f":"affiches/2026-09-27.jpg","d":["2026-09-27"],"t":"Programme du dimanche 27 septembre"}];

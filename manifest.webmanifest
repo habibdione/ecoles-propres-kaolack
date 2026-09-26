@@ -1,0 +1,26 @@
+{
+  "name": "Écoles Propres Kaolack",
+  "short_name": "Écoles Propres",
+  "description": "Suivi des opérations de nettoiement des écoles de la commune de Kaolack.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F2EFE6",
+  "theme_color": "#0C7048",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "icone-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icone-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

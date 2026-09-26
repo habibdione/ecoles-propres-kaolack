@@ -71,6 +71,25 @@ insert into public.suivi (id, doc) values
   ('J3-003', '{"date": "2026-09-27", "maj": "2026-09-26T14:30:00.000Z", "obs": "Programmée dimanche 27 septembre (affiche de la Commune). Rang 9 du programme UC 1.", "photos": [], "taches": {}}'::jsonb)
 on conflict (id) do update set doc = excluded.doc;
 
+-- 7. Stockage des photos de terrain, déposées depuis le téléphone.
+--    Compartiment public en lecture : les vignettes s'affichent dans l'app sans
+--    signature. En écriture, le dépôt est ouvert, comme le pointage ; aucune
+--    règle de suppression n'existe, donc une photo déposée ne peut pas disparaître.
+insert into storage.buckets (id, name, public)
+values ('photos', 'photos', true)
+on conflict (id) do update set public = true;
+
+drop policy if exists "photos lecture publique" on storage.objects;
+drop policy if exists "photos depot"            on storage.objects;
+
+create policy "photos lecture publique"
+  on storage.objects for select
+  using (bucket_id = 'photos');
+
+create policy "photos depot"
+  on storage.objects for insert
+  with check (bucket_id = 'photos');
+
 -- Contrôle : doit renvoyer les 8 lignes d'amorçage.
 select id, doc->>'date' as date_passage,
        jsonb_array_length(coalesce(doc->'photos', '[]'::jsonb)) as photos

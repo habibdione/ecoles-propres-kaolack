@@ -1,6 +1,6 @@
 /* Agent de service — Écoles Propres Kaolack.
    Le noyau est mis en cache à l'installation ; les photos le sont au fil des consultations. */
-var VERSION = "ca226c22";
+var VERSION = "41de91f3";
 var NOYAU = "noyau-" + VERSION;
 var MEDIA = "media-" + VERSION;
 var ESSENTIELS = [
@@ -41,7 +41,26 @@ self.addEventListener("fetch", function (e) {
   var r = e.request;
   if (r.method !== "GET") return;
   var u = new URL(r.url);
-  if (u.origin !== location.origin) return;
+  if (u.origin !== location.origin) {
+    /* Photos de terrain deposees dans Supabase : mises en cache au fil des
+       consultations, comme les photos embarquees, pour rester visibles hors
+       reseau. Tout le reste du trafic distant passe sans etre touche. */
+    if (u.pathname.indexOf("/storage/v1/object/public/") === 0) {
+      e.respondWith(
+        caches.match(r).then(function (dans) {
+          if (dans) return dans;
+          return fetch(r).then(function (rep) {
+            if (rep && rep.status === 200) {
+              var copie = rep.clone();
+              caches.open(MEDIA).then(function (c) { c.put(r, copie); });
+            }
+            return rep;
+          });
+        })
+      );
+    }
+    return;
+  }
 
   var media = /\.(jpg|jpeg|png|webp)$/i.test(u.pathname);
   e.respondWith(

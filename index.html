@@ -281,6 +281,47 @@ main{padding:var(--e4) var(--e4) 100px}
 .affiche:active{transform:scale(.995)}
 .affiche img{width:100%; height:auto; display:block}
 .tournee-actions{display:flex; gap:var(--e2); margin:var(--e3) 0 0}
+.accueil{
+  position:fixed; inset:0; z-index:90; background:var(--fond); overflow-y:auto;
+  display:flex; align-items:center; justify-content:center; padding:20px 16px;
+}
+.accueil-carte{
+  max-width:460px; width:100%; background:var(--surface); border:1px solid var(--trait);
+  border-radius:var(--r); box-shadow:var(--ombre-2); padding:22px;
+}
+.accueil-services{display:grid; grid-template-columns:repeat(3,1fr); gap:15px 10px; margin:0 0 20px}
+.accueil-services figure{
+  margin:0; display:flex; flex-direction:column; align-items:center; gap:7px; text-align:center;
+  opacity:0; transform:translateY(9px) scale(.96);
+  animation:logo-entree .55s cubic-bezier(.2,.7,.3,1) forwards;
+  animation-delay:calc(var(--i) * 95ms);
+}
+.accueil-services img{height:44px; width:auto; max-width:100%; object-fit:contain}
+.accueil-services figcaption{font-size:10.5px; line-height:1.3; color:var(--texte-3); font-weight:700}
+@keyframes logo-entree{to{opacity:1; transform:none}}
+.accueil-plan{
+  margin:0 0 20px; opacity:0;
+  animation:logo-entree .6s cubic-bezier(.2,.7,.3,1) .6s forwards;
+}
+.accueil-plan img{
+  width:100%; height:auto; display:block; background:#fff;
+  border:1px solid var(--trait); border-radius:var(--r-s);
+}
+.accueil-plan figcaption{font-size:11px; line-height:1.45; color:var(--texte-3); margin-top:7px}
+@media (prefers-reduced-motion: reduce){
+  .accueil-services figure,
+  .accueil-plan{animation:none; opacity:1; transform:none}
+}
+.accueil h1{font-size:24px; line-height:1.15; margin:0 0 9px; letter-spacing:-.02em}
+.accueil h1 span{color:var(--vert)}
+.accueil-sous{font-size:13px; line-height:1.55; color:var(--texte-2); margin:0 0 16px}
+.accueil-liste{margin:0 0 20px; padding-left:18px; font-size:13.5px; line-height:1.7; color:var(--texte-2)}
+.accueil-liste b{color:var(--texte)}
+.accueil-actions{display:flex; flex-direction:column; gap:var(--e2)}
+.accueil-aide{
+  font-size:12.5px; line-height:1.55; color:var(--texte-2); margin:14px 0 0;
+  padding:11px; background:var(--creux); border-radius:var(--r-s);
+}
 .coche-lancer{margin:0 0 var(--e3)}
 .ligne.cochable{grid-template-columns:3px auto 1fr auto}
 .ligne.prise{background:var(--vert-pale)}
@@ -751,6 +792,52 @@ main{padding:var(--e4) var(--e4) 100px}
       </button>
     </div>
   </nav>
+
+  <!-- Écran d'accueil : ce que fait l'app, et l'installation, avant d'entrer.
+       Il ne s'affiche que dans un navigateur ; lancée depuis l'écran d'accueil du
+       téléphone, l'application passe directement au Planning. -->
+  <div class="accueil" id="accueil" role="dialog" aria-modal="true" aria-labelledby="accueilTitre">
+    <div class="accueil-carte">
+      <h1 id="accueilTitre">Écoles Propres <span>Kaolack</span></h1>
+      <p class="accueil-sous">Suivi des opérations de nettoiement des établissements scolaires
+        de la commune de Kaolack — CSIG SONAGED, avec la Direction Générale du Cadre de Vie,
+        la Commune de Kaolack, le Service d'Hygiène, les Constructions scolaires et le Génie militaire.</p>
+      <div class="accueil-services" role="group" aria-label="Services concernés">
+        <figure style="--i:0"><img src="logos/cadredevie.png" alt=""><figcaption>Cadre de Vie</figcaption></figure>
+        <figure style="--i:1"><img src="logos/commune.png" alt=""><figcaption>Commune de Kaolack</figcaption></figure>
+        <figure style="--i:2"><img src="logos/sonaged.png" alt=""><figcaption>SONAGED</figcaption></figure>
+        <figure style="--i:3"><img src="logos/hygiene.png" alt=""><figcaption>Service d'Hygiène</figcaption></figure>
+        <figure style="--i:4"><img src="logos/genie.png" alt=""><figcaption>Génie militaire</figcaption></figure>
+        <figure style="--i:5"><img src="logos/pompiers.png" alt=""><figcaption>Sapeurs-pompiers</figcaption></figure>
+      </div>
+      <figure class="accueil-plan">
+        <img src="cartes/situation-generale.jpg" width="1400" height="865"
+             alt="Carte de la commune de Kaolack : quartiers des tournées J1, J2 et J3, et position des écoles concernées">
+        <figcaption>Zone d'intervention — quartiers des tournées J1, J2 et J3, et les écoles
+          relevées au GPS. Fond OpenStreetMap, réalisation CESIG SONAGED Kaolack.</figcaption>
+      </figure>
+      <ul class="accueil-liste">
+        <li><b>48 établissements</b> relevés au GPS, 181 interventions à pointer.</li>
+        <li><b>Planning du jour</b>, avec l'itinéraire enchaîné vers Google Maps.</li>
+        <li><b>Carte hors réseau</b> : fond OpenStreetMap embarqué, sans données mobiles.</li>
+        <li><b>Saisie partagée</b> : ce qu'un agent pointe, les autres le voient.</li>
+      </ul>
+      <div class="accueil-actions">
+        <button class="btn plein large" id="accueilInstaller" type="button">Installer l'application</button>
+        <button class="btn large" id="accueilEntrer" type="button">Continuer sans installer</button>
+      </div>
+      <p class="accueil-aide" id="accueilAide" hidden></p>
+    </div>
+  </div>
+  <script>
+    /* Masquer l'accueil sans attendre app.js : en application installée, il ne doit
+       pas apparaître même une fraction de seconde. */
+    (function () {
+      var seul = (window.matchMedia && matchMedia("(display-mode: standalone)").matches) ||
+                 navigator.standalone === true;
+      if (seul) document.getElementById("accueil").hidden = true;
+    })();
+  </script>
 
   <div class="toast" id="toast" hidden role="status"></div>
 </div>

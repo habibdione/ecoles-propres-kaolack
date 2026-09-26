@@ -63,8 +63,14 @@
   var DISTANT = (function () {
     var c = window.KLCONF;
     if (!c || !c.url || !c.cle) return null;
+    var base = c.url.replace(/\/+$/, "");
     return {
-      lignes: c.url.replace(/\/+$/, "") + "/rest/v1/suivi",
+      lignes: base + "/rest/v1/suivi",
+      /* stockage des photos prises sur le terrain : dépôt d'un côté,
+         adresse publique de lecture de l'autre */
+      depot: base + "/storage/v1/object/photos/",
+      publique: base + "/storage/v1/object/public/photos/",
+      cle: c.cle,
       entetes: {
         "apikey": c.cle,
         "Authorization": "Bearer " + c.cle,
@@ -136,8 +142,11 @@
     var arch = (ARCHIVE[id] || []).map(function (p) {
       return { url: p.f, ph: p.ph, archive: true, src: p.src };
     });
+    /* Deux provenances : « u » pour une photo déposée dans Supabase, « a » pour
+       une photo confiée au stockage de claude.ai. Les anciennes fiches gardent
+       la seconde forme, elles restent lisibles là où elles ont été prises. */
     var champ = (suiviDe(id).photos || []).map(function (p, i) {
-      return { url: "/_blob/" + p.a, ph: p.ph, par: p.par, le: p.le, index: i };
+      return { url: p.u || ("/_blob/" + p.a), ph: p.ph, par: p.par, le: p.le, index: i };
     });
     return arch.concat(champ);
   }
@@ -199,6 +208,35 @@
     if (S.moi && uid === S.moi) return S.noms[uid] || "vous";
     return S.noms[uid] || "un agent";
   }
+
+  /* ---------------- pile de navigation ----------------
+     Sur Android, le bouton Retour du téléphone quitte l'application dès qu'il
+     n'a rien à défaire. Chaque couche ouverte — onglet quitté, fiche, programme,
+     photo — pousse donc une entrée dans l'historique : le Retour la dépile au
+     lieu de sortir. Quand la pile est vide, le navigateur reprend la main et
+     l'app se ferme, ce qui est le comportement attendu depuis l'accueil. */
+  var PILE = [];
+  var RETOUR = false;   // vrai pendant un retour : ne pas retoucher l'historique
+
+  function empiler(nom, fermer) {
+    PILE.push({ nom: nom, fermer: fermer });
+    try { history.pushState({ kl: nom, n: PILE.length }, ""); } catch (e) { }
+  }
+
+  /* Fermeture demandée par un bouton de l'interface : on repasse par l'historique,
+     sinon il y resterait une entrée fantôme et il faudrait appuyer deux fois. */
+  function depiler(nom) {
+    if (RETOUR || !PILE.length || PILE[PILE.length - 1].nom !== nom) return false;
+    history.back();
+    return true;
+  }
+
+  window.addEventListener("popstate", function () {
+    if (!PILE.length) return;   /* plus rien à défaire : le navigateur quitte */
+    var couche = PILE.pop();
+    RETOUR = true;
+    try { couche.fermer(); } finally { RETOUR = false; }
+  });
 
   /* ---------------- persistance ----------------
      Tout ce qui est saisi part d'abord dans une file d'attente gardée sur
@@ -912,9 +950,22 @@
     return l.join(NL);
   }
 
-  function ouvrirProgramme(jour, lot) {
+  function fermerProgrammeReel() {
     var v = $("#programme");
     if (v) v.remove();
+    if (!S.fiche) document.body.style.overflow = "";
+  }
+
+  function fermerProgramme() {
+    if (depiler("programme")) return;
+    fermerProgrammeReel();
+  }
+
+  function ouvrirProgramme(jour, lot) {
+    var v = $("#programme");
+    var deja = !!v;
+    if (v) v.remove();
+    if (!deja) empiler("programme", fermerProgrammeReel);
     v = el("div", "programme");
     v.id = "programme";
     v.setAttribute("role", "dialog");
@@ -955,7 +1006,7 @@
 
     var outils = el("div", "programme-outils");
     var fermer = el("button", "btn large", "Fermer");
-    fermer.onclick = function () { v.remove(); if (!S.fiche) document.body.style.overflow = ""; };
+    fermer.onclick = fermerProgramme;
     var copier = el("button", "btn plein large", "Copier le texte");
     copier.onclick = function () {
       var txt = texteProgramme(jour, lot);
@@ -1283,8 +1334,19 @@
     if (btn) { btn.disabled = true; btn.textContent = "Recherche…"; }
     navigator.geolocation.getCurrentPosition(function (p) {
       S.maPosition = [p.coords.latitude, p.coords.longitude];
+      /* Relever la position sans y amener la carte ne sert à rien : on cadre
+         dessus. Hors de la zone levée, cadrer montrerait du vide — on le dit. */
+      var x = PROJ.x(p.coords.longitude), y = PROJ.y(p.coords.latitude);
+      var cb = cadreBase();
+      var dedans = x >= cb[0] && x <= cb[0] + cb[2] && y >= cb[1] && y <= cb[1] + cb[3];
+      if (dedans) {
+        S.centre = [x, y];
+        S.zoom = Math.max(S.zoom, 6);
+      }
       rendreCarte();
-      toast("Position relevée (± " + Math.round(p.coords.accuracy) + " m)");
+      toast(dedans
+        ? "Position relevée (± " + Math.round(p.coords.accuracy) + " m)"
+        : "Position relevée, mais hors de la commune de Kaolack.");
     }, function (err) {
       /* code 1 = refus : souvent la page elle-même n'a pas le droit de lire le GPS
          dans le cadre où elle s'affiche, indépendamment du réglage du téléphone. */
@@ -1298,6 +1360,11 @@
 
   /* ---------------- fiche école ---------------- */
   function fermerFiche() {
+    if (depiler("fiche")) return;
+    fermerFicheReel();
+  }
+
+  function fermerFicheReel() {
     fermerVisionneuse();
     var f = $("#ficheEcole");
     if (f) f.remove();
@@ -1312,6 +1379,7 @@
     var garde = null;
     var ancien = $("#ficheEcole");
     if (ancien) { garde = ancien.scrollTop; ancien.remove(); }
+    if (!S.fiche) empiler("fiche", fermerFicheReel);
     S.fiche = id;
     document.body.style.overflow = "hidden";
     var d = suiviDe(id), b = bilanEcole(e);
@@ -1582,7 +1650,7 @@
           c.onclick = function () { ouvrirVisionneuse(e, toutes, pos); };
           if (!ph.archive) {
             c.appendChild(el("span", "tag", "Ajoutée"));
-            if (S.assets) {
+            if (S.assets || DISTANT) {
               /* span et non button : une vignette est déjà un bouton */
               var sup = el("span", "sup", "×");
               sup.setAttribute("role", "button");
@@ -1593,7 +1661,7 @@
                 ev.stopPropagation();
                 var aid = (suiviDe(id).photos || [])[ph.index];
                 majSuivi(id, function (doc) { doc.photos.splice(ph.index, 1); });
-                if (aid && S.assets.delete) S.assets.delete(aid.a).catch(function () { });
+                if (aid && aid.a && S.assets && S.assets.delete) S.assets.delete(aid.a).catch(function () { });
                 ouvrirFiche(id, true);
               };
               c.appendChild(sup);
@@ -1610,7 +1678,7 @@
     ["avant", "apres"].forEach(function (phase) {
       var btn = el("button", "btn large", phase === "avant" ? "Photo avant" : "Photo après");
       btn.type = "button";
-      if (!S.assets) { btn.disabled = true; btn.title = "Ajout de photos réservé à l'espace partagé"; }
+      if (!S.assets && !DISTANT) { btn.disabled = true; btn.title = "Ajout de photos indisponible hors base partagée"; }
       btn.onclick = function () { prendrePhoto(id, phase, btn); };
       ajout.appendChild(btn);
     });
@@ -1657,7 +1725,9 @@
   /* ---------------- visionneuse ---------------- */
   var VUE_PHOTO = null;
   function ouvrirVisionneuse(e, liste, pos) {
+    var deja = !!VUE_PHOTO;   /* faire défiler ne rouvre pas une couche */
     fermerVisionneuse();
+    if (!deja) empiler("photo", fermerVisionneuse);
     VUE_PHOTO = { liste: liste, pos: pos, ecole: e };
     var v = el("div", "visionneuse");
     v.id = "visionneuse";
@@ -1669,7 +1739,7 @@
     var fermer = el("button", null, "×");
     fermer.type = "button";
     fermer.setAttribute("aria-label", "Fermer");
-    fermer.onclick = fermerVisionneuse;
+    fermer.onclick = quitterVisionneuse;
     haut.appendChild(fermer);
     v.appendChild(haut);
 
@@ -1712,6 +1782,11 @@
     b[0].disabled = VUE_PHOTO.pos === 0;
     b[1].disabled = VUE_PHOTO.pos === VUE_PHOTO.liste.length - 1;
   }
+  function quitterVisionneuse() {
+    if (depiler("photo")) return;
+    fermerVisionneuse();
+  }
+
   function fermerVisionneuse() {
     var v = $("#visionneuse");
     if (v) v.remove();
@@ -1719,8 +1794,30 @@
   }
 
   /* ---------------- photos ---------------- */
+  /* Dépose une photo dans le stockage Supabase et rend son adresse publique.
+     Le nom tient au code SIG, à la phase et à l'horodatage, plus un tirage
+     aléatoire : deux agents qui photographient la même école à la même seconde
+     ne s'écrasent pas. Rien n'est jamais remplacé — x-upsert reste à false. */
+  function deposerPhoto(id, phase, blob) {
+    var nom = id + "/" + phase + "-" + Date.now() + "-" +
+              Math.random().toString(36).slice(2, 8) + ".jpg";
+    return fetch(DISTANT.depot + nom, {
+      method: "POST",
+      headers: {
+        "apikey": DISTANT.cle,
+        "Authorization": "Bearer " + DISTANT.cle,
+        "Content-Type": "image/jpeg",
+        "x-upsert": "false"
+      },
+      body: blob
+    }).then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return { u: DISTANT.publique + nom };
+    });
+  }
+
   function prendrePhoto(id, phase, btn) {
-    if (!S.assets) return;
+    if (!S.assets && !DISTANT) return;
     var input = document.createElement("input");
     input.type = "file"; input.accept = "image/*"; input.capture = "environment";
     input.style.display = "none";
@@ -1731,11 +1828,14 @@
       if (!file) return;
       btn.disabled = true; btn.textContent = "Envoi…";
       compresser(file).then(function (blob) {
-        return S.assets.upload(blob, { type: "image/jpeg" });
-      }).then(function (res) {
+        return S.assets
+          ? S.assets.upload(blob, { type: "image/jpeg" }).then(function (res) { return { a: res.id }; })
+          : deposerPhoto(id, phase, blob);
+      }).then(function (ref) {
         majSuivi(id, function (doc) {
           if (!doc.photos) doc.photos = [];
-          doc.photos.push({ a: res.id, ph: phase, par: S.moi || "", le: new Date().toISOString() });
+          doc.photos.push({ u: ref.u, a: ref.a, ph: phase, par: S.moi || "",
+                            le: new Date().toISOString() });
         });
         toast("Photo " + (phase === "avant" ? "avant" : "après") + " enregistrée.");
         ouvrirFiche(id, true);
@@ -2270,7 +2370,24 @@
   }
 
   /* ---------------- navigation ---------------- */
+  /* Un seul cran d'historique pour les onglets, pas un par tapotement : quitter
+     le Planning en pose un, y revenir le retire. Retour ramène donc au Planning,
+     puis quitte — ce qu'attend un utilisateur Android. */
   function allerA(vue) {
+    if (!RETOUR) {
+      var horsPlanning = PILE.some(function (c) { return c.nom === "vue"; });
+      if (vue !== "Planning" && !horsPlanning) {
+        empiler("vue", function () { appliquerVue("Planning"); });
+      } else if (vue === "Planning" && horsPlanning &&
+                 PILE[PILE.length - 1].nom === "vue") {
+        history.back();   /* popstate fera le retour au Planning */
+        return;
+      }
+    }
+    appliquerVue(vue);
+  }
+
+  function appliquerVue(vue) {
     S.vue = vue;
     $("#vuePlanning").hidden = vue !== "Planning";
     $("#vueEcoles").hidden = vue !== "Ecoles";
@@ -2312,17 +2429,62 @@
   $("#carteRecadrer").addEventListener("click", recadrer);
   document.addEventListener("keydown", function (ev) {
     if (VUE_PHOTO) {
-      if (ev.key === "Escape") { ev.preventDefault(); fermerVisionneuse(); }
+      if (ev.key === "Escape") { ev.preventDefault(); quitterVisionneuse(); }
       else if (ev.key === "ArrowLeft") { ev.preventDefault(); glisser(-1); }
       else if (ev.key === "ArrowRight") { ev.preventDefault(); glisser(1); }
       return;
     }
     if (ev.key === "Escape") {
-      var pr = $("#programme");
-      if (pr) { ev.preventDefault(); pr.remove(); if (!S.fiche) document.body.style.overflow = ""; return; }
+      if ($("#programme")) { ev.preventDefault(); fermerProgramme(); return; }
       if (S.fiche) fermerFiche();
     }
   });
+
+  /* ---------------- écran d'accueil et installation ----------------
+     Le navigateur ne laisse pas déclencher l'installation quand on veut : il
+     annonce qu'elle est possible, et il faut garder son événement pour le
+     rejouer au moment où l'utilisateur touche le bouton. */
+  var INSTALL = null;
+
+  window.addEventListener("beforeinstallprompt", function (ev) {
+    ev.preventDefault();
+    INSTALL = ev;
+  });
+
+  window.addEventListener("appinstalled", function () {
+    INSTALL = null;
+    var a = $("#accueil");
+    if (a) a.hidden = true;
+    toast("Application installée — retrouvez-la sur l'écran d'accueil.");
+  });
+
+  (function ecranAccueil() {
+    var vue = $("#accueil");
+    if (!vue || vue.hidden) return;   /* déjà écarté : on tourne en app installée */
+    var installer = $("#accueilInstaller"), entrer = $("#accueilEntrer"), aide = $("#accueilAide");
+
+    installer.onclick = function () {
+      if (!INSTALL) {
+        /* Safari et quelques autres n'offrent pas d'installation automatique :
+           on décrit le geste manuel plutôt que de laisser un bouton inerte. */
+        aide.hidden = false;
+        aide.textContent = /iphone|ipad|ipod/i.test(navigator.userAgent)
+          ? "Sur iPhone : touchez « Partager » en bas de Safari, puis « Sur l'écran d'accueil »."
+          : "Dans le menu du navigateur (⋮ en haut à droite), choisissez « Installer l'application » "
+            + "ou « Ajouter à l'écran d'accueil ».";
+        return;
+      }
+      installer.disabled = true;
+      INSTALL.prompt();
+      INSTALL.userChoice.then(function (r) {
+        INSTALL = null;
+        if (r && r.outcome === "accepted") vue.hidden = true;
+        else installer.disabled = false;
+      }).catch(function () { installer.disabled = false; });
+    };
+
+    entrer.onclick = function () { vue.hidden = true; };
+  })();
 
   connecter();
 })();

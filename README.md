@@ -1,8 +1,8 @@
 # Écoles Propres Kaolack
 
 Application mobile de suivi des opérations de nettoiement des établissements scolaires
-de la commune de Kaolack — **CSIG SONAGED**, avec la Direction Générale du Cadre de Vie,
-la Commune de Kaolack, le Service d'Hygiène, les Constructions scolaires et le Génie militaire.
+de la commune de Kaolack — la **SONAGED**, avec Cadre de Vie, la Commune de Kaolack,
+le Service d'Hygiène, le Génie militaire et les Sapeurs-pompiers.
 
 Elle fonctionne **sans serveur** : tout tient dans des fichiers statiques, et une fois
 la page ouverte une première fois, elle s'ouvre encore sans réseau.

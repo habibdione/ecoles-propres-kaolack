@@ -676,7 +676,7 @@
 
   /* Barre de la programmation groupée : le choix de la date, puis la validation.
      Elle remplace les actions habituelles du jour tant que le mode est ouvert. */
-  function barreProgrammation(choisi, auj) {
+  function barreProgrammation(cochables, auj) {
     var ids = Object.keys(S.coche);
     var barre = el("div", "coche-barre");
 
@@ -684,10 +684,15 @@
     haut.appendChild(el("span", "coche-compte", ids.length
       ? ids.length + (ids.length > 1 ? " écoles sélectionnées" : " école sélectionnée")
       : "Touchez les écoles à programmer"));
-    var tout = el("button", "puce", ids.length === choisi.length ? "Tout décocher" : "Tout cocher");
+    /* « Tout » vise ce que l'écran montre, pas la sélection entière : celle-ci peut
+       porter sur des écoles cochées dans un autre onglet, qu'un décochage local
+       n'a pas à emporter. */
+    var tousPris = cochables.length > 0 && cochables.every(function (e) { return !!S.coche[e.id]; });
+    var tout = el("button", "puce", tousPris ? "Tout décocher" : "Tout cocher");
     tout.onclick = function () {
-      if (ids.length === choisi.length) S.coche = {};
-      else choisi.forEach(function (e) { S.coche[e.id] = true; });
+      cochables.forEach(function (e) {
+        if (tousPris) delete S.coche[e.id]; else S.coche[e.id] = true;
+      });
       rendrePlanning();
     };
     haut.appendChild(tout);
@@ -790,12 +795,21 @@
       var n = seaux[p[0]].length;
       var b = el("button", "puce", p[1] + (n ? " · " + n : ""));
       b.setAttribute("aria-pressed", String(S.jour === p[0]));
-      b.onclick = function () { S.jour = p[0]; S.jourAuto = false; S.coche = null; rendrePlanning(); };
+      /* La sélection survit au changement d'onglet : un jour se compose souvent
+         d'écoles puisées dans plusieurs onglets — une à reprogrammer, une jamais
+         datée. Le compte affiché dans la barre reste celui de tout le cochage. */
+      b.onclick = function () { S.jour = p[0]; S.jourAuto = false; rendrePlanning(); };
       onglets.appendChild(b);
     });
     v.appendChild(onglets);
 
     var choisi = seaux[S.jour];
+    /* Écoles relevant d'autres services que l'onglet courant ne montre pas déjà :
+       elles sont listées sous le jour, et se cochent comme les autres. */
+    var aLEcran = {};
+    choisi.forEach(function (e) { aLEcran[e.id] = true; });
+    var hors = lot.filter(function (e) { return horsProgramme(e) && !aLEcran[e.id]; });
+    var cochables = choisi.concat(hors);
     var titres = {
       demain: ["Intervention de demain", dateLongue(decale(auj, 1))],
       aujourdhui: ["Intervention du jour", dateLongue(auj)],
@@ -828,6 +842,23 @@
       bloc.appendChild(fig);
     }
 
+    /* Le planning se refait tous les jours, depuis un téléphone : ouvrir chaque
+       fiche l'une après l'autre serait trop lent. Ici, on coche les écoles et on
+       leur donne une date d'un seul geste. Aucun redéploiement n'est en jeu : la
+       date part dans la base partagée comme n'importe quelle autre saisie. */
+    function lanceurCoche() {
+      var ouvrir = el("div", "tournee-actions coche-lancer");
+      var lancer = el("button", "btn large", "Programmer pour ce jour");
+      lancer.onclick = function () {
+        S.coche = {};
+        S.cocheDate = jourVise || (S.jour === "passees" ? auj : decale(auj, 1));
+        rendrePlanning();
+      };
+      ouvrir.appendChild(lancer);
+      return ouvrir;
+    }
+    var peutCocher = S.peutEcrire !== false && !S.coche && cochables.length > 0;
+
     if (!choisi.length) {
       var vide = el("div", "bloc");
       vide.style.textAlign = "center";
@@ -844,31 +875,16 @@
         : "Aucune école programmée. Ouvrez « À programmer » et fixez une date de passage."))
         .style.cssText = "margin:0;color:var(--texte-3);font-size:14px";
       bloc.appendChild(vide);
+      if (peutCocher) bloc.appendChild(lanceurCoche());
       v.appendChild(bloc);
     } else {
-      /* Le planning se refait tous les jours, depuis un téléphone : ouvrir chaque
-         fiche l'une après l'autre serait trop lent. Ici, on coche les écoles et
-         on leur donne une date d'un seul geste. Aucun redéploiement n'est en jeu :
-         la date part dans la base partagée comme n'importe quelle autre saisie. */
-      if (S.peutEcrire !== false && !S.coche) {
-        var ouvrirCoche = el("div", "tournee-actions coche-lancer");
-        var lancer = el("button", "btn large", "Programmer pour ce jour");
-        lancer.onclick = function () {
-          S.coche = {};
-          S.cocheDate = jourVise || (S.jour === "passees" ? auj : decale(auj, 1));
-          rendrePlanning();
-        };
-        ouvrirCoche.appendChild(lancer);
-        bloc.appendChild(ouvrirCoche);
-      }
+      if (peutCocher) bloc.appendChild(lanceurCoche());
 
       var liste = el("div", "liste");
       choisi.forEach(function (e) {
         liste.appendChild(ligneEcole(e, { rang: true, date: S.jour !== "libre", cocher: !!S.coche }));
       });
       bloc.appendChild(liste);
-
-      if (S.coche) bloc.appendChild(barreProgrammation(choisi, auj));
 
       if (!S.coche && (S.jour === "demain" || S.jour === "aujourdhui")) {
         /* Une seule affiche par jour. Celle de la Commune fait foi : elle est déjà
@@ -901,11 +917,7 @@
       v.appendChild(bloc);
     }
 
-    /* Écoles hors du programme SONAGED / Cadre de Vie. Celles que l'onglet courant
-       présente déjà n'ont pas à être répétées ici. */
-    var aLEcran = {};
-    choisi.forEach(function (e) { aLEcran[e.id] = true; });
-    var hors = lot.filter(function (e) { return horsProgramme(e) && !aLEcran[e.id]; });
+    /* Écoles hors du programme SONAGED / Cadre de Vie. */
     if (hors.length) {
       var bh = el("div", "bloc");
       var th = el("div", "bloc-titre");
@@ -915,34 +927,51 @@
       bh.appendChild(el("p", "note-hors", "Ces établissements ne figurent pas au programme de nettoiement : " +
         "soit ils n'ont aucune activité de désherbage, soit la SONAGED et le Cadre de Vie n'y sont pas " +
         "concernés et l'intervention relève d'un autre service — souvent le pompage du Service d'Hygiène, " +
-        "préalable à tout nettoiement. Elles se programment comme les autres : ouvrez " +
-        "« À programmer » pour leur fixer une date de passage. Services en charge :"));
-      var lh = el("div", "alerte-liste");
-      hors.sort(function (a, b) { return a.priorite - b.priorite; }).forEach(function (e) {
-        var w = el("div", "alerte");
-        var pt = el("span", "pt");
-        pt.style.background = e.priorite === 1 ? "var(--laterite)" : "var(--trait-fort)";
-        w.appendChild(pt);
-        var tx = el("div");
-        tx.appendChild(el("div", null, e.nom));
-        tx.appendChild(el("em", null, e.quartier + " · UC " + e.uc + " · priorité " + e.priorite +
-          (e.inondation ? " · inondation constatée" : "")));
-        var chips = el("div", "services-rangee");
-        servicesDe(e).forEach(function (s) {
-          var c = el("span", "service-puce", serviceCourt(s));
-          c.style.color = couleurService(s);
-          c.style.borderColor = couleurService(s);
-          chips.appendChild(c);
+        "préalable à tout nettoiement. Elles se retiennent pour une tournée comme les " +
+        "autres : touchez « Programmer pour ce jour », puis cochez-les ici même. " +
+        "Services en charge :"));
+      hors.sort(function (a, b) { return a.priorite - b.priorite; });
+      if (S.coche) {
+        /* Pendant le cochage, ces écoles se présentent comme celles du jour : c'est
+           la seule façon de les retenir pour une tournée. Le service en charge se
+           lit dans leur fiche, et leur ligne porte la mention « Autre service ». */
+        var lc = el("div", "liste");
+        hors.forEach(function (e) {
+          lc.appendChild(ligneEcole(e, { rang: true, date: true, cocher: true }));
         });
-        tx.appendChild(chips);
-        w.appendChild(tx);
-        w.style.cursor = "pointer";
-        w.onclick = function () { ouvrirFiche(e.id); };
-        lh.appendChild(w);
-      });
-      bh.appendChild(lh);
+        bh.appendChild(lc);
+      } else {
+        var lh = el("div", "alerte-liste");
+        hors.forEach(function (e) {
+          var w = el("div", "alerte");
+          var pt = el("span", "pt");
+          pt.style.background = e.priorite === 1 ? "var(--laterite)" : "var(--trait-fort)";
+          w.appendChild(pt);
+          var tx = el("div");
+          tx.appendChild(el("div", null, e.nom));
+          tx.appendChild(el("em", null, e.quartier + " · UC " + e.uc + " · priorité " + e.priorite +
+            (e.inondation ? " · inondation constatée" : "")));
+          var chips = el("div", "services-rangee");
+          servicesDe(e).forEach(function (s) {
+            var c = el("span", "service-puce", serviceCourt(s));
+            c.style.color = couleurService(s);
+            c.style.borderColor = couleurService(s);
+            chips.appendChild(c);
+          });
+          tx.appendChild(chips);
+          w.appendChild(tx);
+          w.style.cursor = "pointer";
+          w.onclick = function () { ouvrirFiche(e.id); };
+          lh.appendChild(w);
+        });
+        bh.appendChild(lh);
+      }
       v.appendChild(bh);
     }
+
+    /* La barre de date vient sous toutes les listes cochables : on coche d'abord,
+       où que soient les écoles, on date ensuite. */
+    if (S.coche) v.appendChild(barreProgrammation(cochables, auj));
 
     if (EXEC_META.sequence) v.appendChild(el("p", "note-pied", EXEC_META.sequence));
     var prog = ECOLES.filter(function (e) { return !horsProgramme(e); });

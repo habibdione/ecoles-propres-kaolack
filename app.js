@@ -1795,10 +1795,17 @@
     });
     bp.appendChild(ajout);
 
-    /* Une école se solde sur pièces : le bouton de clôture n'apparaît qu'une fois
-       les clichés versés depuis le terrain. Il marque les interventions faites,
-       ce qui range l'établissement parmi les terminés. */
-    if (e.taches.length && (d.photos || []).length) {
+    /* Une école se solde sur pièces : seul un cliché « après » — la preuve du
+       passage de l'équipe, non celle du diagnostic — ouvre la clôture. Elle marque
+       les interventions faites, ce qui range l'établissement parmi les terminés. */
+    var preuve = (d.photos || []).some(function (p) { return p.ph === "apres"; });
+    if (e.taches.length && !preuve && !b.fini && (d.photos || []).length) {
+      var attendu = el("p", "solde-mot",
+        "Un cliché « après » ouvrira la clôture de l'établissement.");
+      attendu.style.cssText = "margin:var(--e3) 0 0; color:var(--texte-3)";
+      bp.appendChild(attendu);
+    }
+    if (e.taches.length && (preuve || b.fini)) {
       var solde = el("div", "solde");
       if (b.fini) {
         solde.appendChild(el("p", "solde-mot", "Établissement classé parmi les terminés : ses "
@@ -1821,7 +1828,7 @@
         };
         solde.appendChild(rouvrir);
       } else {
-        solde.appendChild(el("p", "solde-mot", "Photos versées. Solder l'établissement marque ses "
+        solde.appendChild(el("p", "solde-mot", "Cliché « après » versé. Solder l'établissement marque ses "
           + b.total + " interventions faites et le classe parmi les terminés."));
         var btnFini = el("button", "btn large plein", "Terminé");
         btnFini.type = "button";

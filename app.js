@@ -1810,25 +1810,12 @@
     if (e.taches.length && (preuve || b.fini)) {
       var solde = el("div", "solde");
       if (b.fini) {
+        /* Pas de bouton pour défaire : une clôture s'annule intervention par
+           intervention, plus haut dans la fiche. Une école ne doit pas pouvoir
+           sortir des terminés sur une frappe malheureuse. */
         solde.appendChild(el("p", "solde-mot", "Établissement classé parmi les terminés : ses "
-          + b.total + " interventions sont faites."));
-        var rouvrir = el("button", "btn large", "Rouvrir le chantier");
-        rouvrir.type = "button";
-        if (S.peutEcrire === false) rouvrir.disabled = true;
-        rouvrir.onclick = function () {
-          majSuivi(id, function (doc) {
-            if (!doc.taches) doc.taches = {};
-            var t0 = new Date().toISOString();
-            e.taches.forEach(function (t) {
-              if (((doc.taches[t.id] || {}).e) === "fait") {
-                doc.taches[t.id] = { e: "encours", par: S.moi || "", le: t0 };
-              }
-            });
-          });
-          toast("École repassée en cours.");
-          ouvrirFiche(id, true);
-        };
-        solde.appendChild(rouvrir);
+          + b.total + " interventions sont faites. Pour revenir dessus, changez l'état "
+          + "d'une intervention plus haut dans la fiche."));
       } else {
         solde.appendChild(el("p", "solde-mot", "Passage constaté en photo. Solder l'établissement marque ses "
           + b.total + " interventions faites et le classe parmi les terminés."));

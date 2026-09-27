@@ -1845,7 +1845,7 @@
             });
             if (!doc.date) doc.date = aujourdhui();
           });
-          toast("École classée parmi les terminées.");
+          toast("École soldée — elle rejoint « Passées ».");
           ouvrirFiche(id, true);
         };
         solde.appendChild(btnFini);

@@ -1794,6 +1794,57 @@
       ajout.appendChild(btn);
     });
     bp.appendChild(ajout);
+
+    /* Une école se solde sur pièces : le bouton de clôture n'apparaît qu'une fois
+       les clichés versés depuis le terrain. Il marque les interventions faites,
+       ce qui range l'établissement parmi les terminés. */
+    if (e.taches.length && (d.photos || []).length) {
+      var solde = el("div", "solde");
+      if (b.fini) {
+        solde.appendChild(el("p", "solde-mot", "Établissement classé parmi les terminés : ses "
+          + b.total + " interventions sont faites."));
+        var rouvrir = el("button", "btn large", "Rouvrir le chantier");
+        rouvrir.type = "button";
+        if (S.peutEcrire === false) rouvrir.disabled = true;
+        rouvrir.onclick = function () {
+          majSuivi(id, function (doc) {
+            if (!doc.taches) doc.taches = {};
+            var t0 = new Date().toISOString();
+            e.taches.forEach(function (t) {
+              if (((doc.taches[t.id] || {}).e) === "fait") {
+                doc.taches[t.id] = { e: "encours", par: S.moi || "", le: t0 };
+              }
+            });
+          });
+          toast("École repassée en cours.");
+          ouvrirFiche(id, true);
+        };
+        solde.appendChild(rouvrir);
+      } else {
+        solde.appendChild(el("p", "solde-mot", "Photos versées. Solder l'établissement marque ses "
+          + b.total + " interventions faites et le classe parmi les terminés."));
+        var btnFini = el("button", "btn large plein", "Terminé");
+        btnFini.type = "button";
+        if (S.peutEcrire === false) {
+          btnFini.disabled = true;
+          btnFini.title = "Lecture seule : demandez l'accès « Contributeur » au superviseur.";
+        }
+        btnFini.onclick = function () {
+          majSuivi(id, function (doc) {
+            if (!doc.taches) doc.taches = {};
+            var t0 = new Date().toISOString();
+            e.taches.forEach(function (t) {
+              doc.taches[t.id] = { e: "fait", par: S.moi || "", le: t0 };
+            });
+            if (!doc.date) doc.date = aujourdhui();
+          });
+          toast("École classée parmi les terminées.");
+          ouvrirFiche(id, true);
+        };
+        solde.appendChild(btnFini);
+      }
+      bp.appendChild(solde);
+    }
     inner.appendChild(bp);
 
     /* observation */

@@ -1795,10 +1795,12 @@
     });
     bp.appendChild(ajout);
 
-    /* Une école se solde sur pièces : seul un cliché « après » — la preuve du
-       passage de l'équipe, non celle du diagnostic — ouvre la clôture. Elle marque
-       les interventions faites, ce qui range l'établissement parmi les terminés. */
-    var preuve = (d.photos || []).some(function (p) { return p.ph === "apres"; });
+    /* Une école se solde sur pièces : seul un cliché « pendant / après » — la preuve
+       du passage de l'équipe, non celle du diagnostic — ouvre la clôture. Elle marque
+       les interventions faites, ce qui range l'établissement parmi les terminés.
+       Les clichés des tournées publiés avec l'app valent preuve au même titre que
+       ceux versés depuis le terrain. */
+    var preuve = passageConstate(id);
     if (e.taches.length && !preuve && !b.fini && (d.photos || []).length) {
       var attendu = el("p", "solde-mot",
         "Un cliché « après » ouvrira la clôture de l'établissement.");
@@ -1828,7 +1830,7 @@
         };
         solde.appendChild(rouvrir);
       } else {
-        solde.appendChild(el("p", "solde-mot", "Cliché « après » versé. Solder l'établissement marque ses "
+        solde.appendChild(el("p", "solde-mot", "Passage constaté en photo. Solder l'établissement marque ses "
           + b.total + " interventions faites et le classe parmi les terminés."));
         var btnFini = el("button", "btn large plein", "Terminé");
         btnFini.type = "button";

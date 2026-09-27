@@ -618,6 +618,10 @@
     return a.priorite - b.priorite;
   }
   function seau(e) {
+    /* Une école soldée est passée, quelle que soit la date portée au planning :
+       le jour n'a plus à la présenter comme un travail à faire, et une école
+       terminée sans date n'a rien à faire dans « À programmer ». */
+    if (bilanEcole(e).fini) return "passees";
     var d = datePassage(e.id);
     if (!d) return "libre";
     var auj = aujourdhui();
@@ -660,9 +664,8 @@
   function repartir(lot) {
     var s = { aujourdhui: [], demain: [], avenir: [], libre: [], passees: [] };
     lot.forEach(function (e) {
-      var k = seau(e);
-      if (k === "libre" && horsProgramme(e)) return;
-      s[k].push(e);
+      if (!datePassage(e.id) && horsProgramme(e)) return;
+      s[seau(e)].push(e);
     });
     return s;
   }
@@ -794,7 +797,7 @@
       aujourdhui: ["Intervention du jour", dateLongue(auj)],
       avenir: ["Jours suivants", "programmées au-delà de demain"],
       libre: ["À programmer", "au programme de nettoiement, sans date fixée"],
-      passees: ["Passées", "dates antérieures à aujourd'hui"]
+      passees: ["Passées", "soldées, ou datées d'avant aujourd'hui"]
     };
     var bloc = el("div", "groupe-jour");
     var t = el("div", "groupe-titre" + (S.jour === "demain" ? " demain" : ""));
@@ -824,8 +827,16 @@
     if (!choisi.length) {
       var vide = el("div", "bloc");
       vide.style.textAlign = "center";
+      /* Un jour vide parce que tout est soldé n'est pas un jour sans programme. */
+      var soldees = jourVise ? lot.filter(function (e) {
+        return datePassage(e.id) === jourVise && bilanEcole(e).fini;
+      }).length : 0;
       vide.appendChild(el("p", null, S.jour === "libre"
         ? "Toutes les écoles de ce périmètre ont une date de passage."
+        : soldees
+          ? (soldees > 1
+              ? "Les " + soldees + " écoles du jour sont soldées : elles ont rejoint « Passées »."
+              : "L'école du jour est soldée : elle a rejoint « Passées ».")
         : "Aucune école programmée. Ouvrez « À programmer » et fixez une date de passage."))
         .style.cssText = "margin:0;color:var(--texte-3);font-size:14px";
       bloc.appendChild(vide);

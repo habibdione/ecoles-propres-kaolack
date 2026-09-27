@@ -2481,7 +2481,8 @@
   }
 
   function exporterCSV() {
-    if (!S.downloads) return;
+    /* Pas de garde sur S.downloads : cette capacité n'existe que sur claude.ai,
+       et le repli par lien de téléchargement, plus bas, marche partout ailleurs. */
     var l = ['Code SIG;Établissement;Quartier;UC;Tournée;Rang programme;Date de passage;Priorité;Inondation;Latitude;Longitude;Intervention;Service;État;Motif du blocage;Mise à jour;Observation'];
     ECOLES.forEach(function (e) {
       var d = suiviDe(e.id);
@@ -2492,7 +2493,8 @@
           e.codes.join(" "), e.nom, e.quartier, "UC " + e.uc, e.tournee,
           e.ordre || "hors programme", datePassage(e.id) || "non programmée", e.priorite,
           e.inondation ? "oui" : "non", e.lat, e.lon, t.label, t.service,
-          st ? ETATS.filter(function (x) { return x.k === st.e; })[0].long : "À faire",
+          /* un état inconnu ne doit pas faire échouer tout le relevé */
+          (st && (ETATS.filter(function (x) { return x.k === st.e; })[0] || {}).long) || "À faire",
           (st && st.m) || "",
           st && st.le ? new Date(st.le).toLocaleString("fr-FR") : "", obs
         ].map(function (v) { return String(v).replace(/;/g, ","); }).join(";"));

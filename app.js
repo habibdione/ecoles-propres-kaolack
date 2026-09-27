@@ -552,6 +552,10 @@
       var r = el("span", "rang mono", "N° " + e.ordre + (e.ajoute ? " · ajoutée" : ""));
       if (e.ajoute) r.classList.add("neuf");
       meta.appendChild(r);
+    } else if (opt.rang) {
+      /* Pas de numéro : l'école n'est pas au programme de nettoiement arrêté. Elle
+         se coche et se date quand même, la ligne dit seulement d'où elle vient. */
+      meta.appendChild(el("span", "code", "Autre service"));
     }
     meta.appendChild(el("span", "code mono", e.codes[0]));
     meta.appendChild(el("span", null, e.quartier));
@@ -659,14 +663,14 @@
     return a;
   }
 
-  /* Répartit les écoles par jour. Celles qui relèvent d'autres services ne
-     tombent pas dans « à programmer » : elles ont leur propre bloc. */
+  /* Répartit les écoles par jour. Celles qui relèvent d'autres services y figurent
+     comme les autres : le programme du jour s'arrête sur le terrain, et une école
+     hors du programme de nettoiement peut très bien être retenue pour une tournée.
+     Leur ligne le rappelle, et le bloc du bas continue de dire quel service est en
+     charge de celles qui ne sont pas déjà à l'écran. */
   function repartir(lot) {
     var s = { aujourdhui: [], demain: [], avenir: [], libre: [], passees: [] };
-    lot.forEach(function (e) {
-      if (!datePassage(e.id) && horsProgramme(e)) return;
-      s[seau(e)].push(e);
-    });
+    lot.forEach(function (e) { s[seau(e)].push(e); });
     return s;
   }
 
@@ -897,8 +901,11 @@
       v.appendChild(bloc);
     }
 
-    /* écoles hors du programme SONAGED / Cadre de Vie */
-    var hors = lot.filter(horsProgramme);
+    /* Écoles hors du programme SONAGED / Cadre de Vie. Celles que l'onglet courant
+       présente déjà n'ont pas à être répétées ici. */
+    var aLEcran = {};
+    choisi.forEach(function (e) { aLEcran[e.id] = true; });
+    var hors = lot.filter(function (e) { return horsProgramme(e) && !aLEcran[e.id]; });
     if (hors.length) {
       var bh = el("div", "bloc");
       var th = el("div", "bloc-titre");
@@ -908,7 +915,8 @@
       bh.appendChild(el("p", "note-hors", "Ces établissements ne figurent pas au programme de nettoiement : " +
         "soit ils n'ont aucune activité de désherbage, soit la SONAGED et le Cadre de Vie n'y sont pas " +
         "concernés et l'intervention relève d'un autre service — souvent le pompage du Service d'Hygiène, " +
-        "préalable à tout nettoiement. Services en charge :"));
+        "préalable à tout nettoiement. Elles se programment comme les autres : ouvrez " +
+        "« À programmer » pour leur fixer une date de passage. Services en charge :"));
       var lh = el("div", "alerte-liste");
       hors.sort(function (a, b) { return a.priorite - b.priorite; }).forEach(function (e) {
         var w = el("div", "alerte");
@@ -2324,7 +2332,7 @@
     ["Demain — " + dateMoyenne(demain()), seaux.demain.length, "demain"],
     ["Jours suivants", seaux.avenir.length, "avenir"],
     ["Déjà passées", seaux.passees.length, "passees"],
-    ["Au programme, sans date", seaux.libre.length, "libre"],
+    ["Sans date de passage", seaux.libre.length, "libre"],
     ["Relèvent d'autres services", lot.filter(horsProgramme).length, "libre"]].forEach(function (p) {
       var w = el("div", "barre-ligne");
       w.style.marginBottom = "9px";

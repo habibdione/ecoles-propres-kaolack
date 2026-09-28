@@ -106,10 +106,16 @@
       else if (s === "bloque") bloques++;
     }
     var total = e.taches.length;
+    /* Deux façons d'être terminé. Avec un diagnostic arrêté, toutes les interventions
+       sont faites. Sans diagnostic — J3-005 et J3-006, relevées sur le terrain — il n'y
+       a rien à pointer : l'établissement se solde sur la seule foi des clichés « après »,
+       par une marque portée dans sa fiche. */
+    var soldeSurPieces = total === 0 && !!suiviDe(e.id).fini;
     return {
       faits: faits, entames: entames, bloques: bloques, total: total,
-      fini: total > 0 && faits === total,
-      demarre: faits + entames + bloques > 0
+      surPieces: soldeSurPieces,
+      fini: total > 0 ? faits === total : soldeSurPieces,
+      demarre: faits + entames + bloques > 0 || soldeSurPieces
     };
   }
   /* ---------------- dates ---------------- */
@@ -580,7 +586,7 @@
     else if (e.priorite === 1) fin.appendChild(el("span", "etiq p1", "Priorité 1"));
     if (!b.total) {
       /* J3-005 et J3-006 : relevées sur le terrain, diagnostic pas encore arrêté */
-      fin.appendChild(el("span", "ratio a-faire", "à diagnostiquer"));
+      fin.appendChild(el("span", "ratio a-faire", b.fini ? "soldée sur pièces" : "à diagnostiquer"));
     } else {
       fin.appendChild(el("span", "ratio mono", b.faits + "/" + b.total));
       var j = el("div", "jauge");
@@ -1849,24 +1855,48 @@
        Les clichés des tournées publiés avec l'app valent preuve au même titre que
        ceux versés depuis le terrain. */
     var preuve = passageConstate(id);
-    if (e.taches.length && !preuve && !b.fini && (d.photos || []).length) {
+    if (!preuve && !b.fini && (d.photos || []).length) {
       var attendu = el("p", "solde-mot",
         "Un cliché « après » ouvrira la clôture de l'établissement.");
       attendu.style.cssText = "margin:var(--e3) 0 0; color:var(--texte-3)";
       bp.appendChild(attendu);
     }
-    if (e.taches.length && (preuve || b.fini)) {
+    if (preuve || b.fini) {
       var solde = el("div", "solde");
-      if (b.fini) {
+      if (b.fini && b.total) {
         /* Pas de bouton pour défaire : une clôture s'annule intervention par
            intervention, plus haut dans la fiche. Une école ne doit pas pouvoir
            sortir des terminés sur une frappe malheureuse. */
         solde.appendChild(el("p", "solde-mot", "Établissement classé parmi les terminés : ses "
           + b.total + " interventions sont faites. Pour revenir dessus, changez l'état "
           + "d'une intervention plus haut dans la fiche."));
+      } else if (b.fini) {
+        /* Soldé sur pièces : aucune intervention à rouvrir plus haut dans la fiche,
+           c'est donc ici — et seulement ici — qu'on peut revenir sur la clôture. */
+        solde.appendChild(el("p", "solde-mot", "Établissement classé parmi les terminés sur la foi "
+          + "des clichés « après » : son diagnostic n'avait arrêté aucune intervention."));
+        if (d.fini && d.fini.le) {
+          solde.appendChild(el("div", "signature", "Soldé le " + dateCourte(d.fini.le)
+            + (d.fini.par ? " · " + nomDe(d.fini.par) : "")));
+        }
+        var rouvrir = el("button", "btn large", "Rouvrir l'établissement");
+        rouvrir.type = "button";
+        if (S.peutEcrire === false) {
+          rouvrir.disabled = true;
+          rouvrir.title = "Lecture seule : demandez l'accès « Contributeur » au superviseur.";
+        }
+        rouvrir.onclick = function () {
+          majSuivi(id, function (doc) { delete doc.fini; });
+          toast("Établissement rouvert.");
+          ouvrirFiche(id, true);
+        };
+        solde.appendChild(rouvrir);
       } else {
-        solde.appendChild(el("p", "solde-mot", "Passage constaté en photo. Solder l'établissement marque ses "
-          + b.total + " interventions faites et le classe parmi les terminés."));
+        solde.appendChild(el("p", "solde-mot", b.total
+          ? "Passage constaté en photo. Solder l'établissement marque ses " + b.total
+            + " interventions faites et le classe parmi les terminés."
+          : "Passage constaté en photo. Aucune intervention n'a été arrêtée au diagnostic : "
+            + "solder l'établissement le classe parmi les terminés sur la foi de ces clichés."));
         var btnFini = el("button", "btn large plein", "Terminé");
         btnFini.type = "button";
         if (S.peutEcrire === false) {
@@ -1875,11 +1905,15 @@
         }
         btnFini.onclick = function () {
           majSuivi(id, function (doc) {
-            if (!doc.taches) doc.taches = {};
-            var t0 = new Date().toISOString();
-            e.taches.forEach(function (t) {
-              doc.taches[t.id] = { e: "fait", par: S.moi || "", le: t0 };
-            });
+            if (e.taches.length) {
+              if (!doc.taches) doc.taches = {};
+              var t0 = new Date().toISOString();
+              e.taches.forEach(function (t) {
+                doc.taches[t.id] = { e: "fait", par: S.moi || "", le: t0 };
+              });
+            } else {
+              doc.fini = { par: S.moi || "", le: new Date().toISOString() };
+            }
             if (!doc.date) doc.date = aujourdhui();
           });
           toast("École soldée — elle rejoint « Passées ».");

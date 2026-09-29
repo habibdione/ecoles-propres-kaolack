@@ -2733,7 +2733,14 @@
   function fermerAvis() {
     clearTimeout(avisMinuteur);
     var a = $("#avis");
-    if (a && a.parentNode) a.parentNode.removeChild(a);
+    if (!a || !a.parentNode || a.classList.contains("sort")) return;
+    /* La sortie par la droite est une animation : on retire l'avis quand elle est
+       jouée. Le minuteur de secours couvre le cas où l'événement ne vient pas —
+       mouvement réduit, onglet en arrière-plan. */
+    a.classList.add("sort");
+    var oter = function () { if (a.parentNode) a.parentNode.removeChild(a); };
+    a.addEventListener("animationend", oter, { once: true });
+    setTimeout(oter, 600);
   }
   function avisEnCours() {
     if (avisFait) return;
@@ -2768,7 +2775,10 @@
       var w = el("button", "avis-ligne");
       w.type = "button";
       var g = el("div");
-      g.appendChild(el("div", null, e.nom));
+      var nom = el("div");
+      if (e.priorite === 1) nom.appendChild(el("span", "avis-p1", "P1"));
+      nom.appendChild(document.createTextNode(e.nom));
+      g.appendChild(nom);
       g.appendChild(el("em", null, e.quartier + " · UC " + e.uc
         + (datePassage(e.id) ? " · " + dateMoyenne(datePassage(e.id)) : "")
         + (b.bloques ? " · " + b.bloques + " bloqué" + (b.bloques > 1 ? "s" : "") : "")));

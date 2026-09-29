@@ -353,6 +353,7 @@
         ecrireCache();
         marqueLien("ok", "Données partagées");
         rafraichir();
+        avisEnCours();
         if (premier) rejouerAttente();
       })
       .catch(function () {
@@ -427,6 +428,7 @@
         ecrireCache();
         marqueLien("ok", snap.metadata && snap.metadata.fromCache ? "Sync…" : "Partagé");
         rafraichir();
+        avisEnCours();
         rejouerAttente();
       }, function (err) {
         marqueLien("ko", err && err.code === "revoked" ? "Accès retiré" : "Liaison coupée");
@@ -596,6 +598,31 @@
       j.appendChild(i); fin.appendChild(j);
     }
     ligne.appendChild(fin);
+
+    /* Le planning bouge en cours de campagne : une équipe est détournée, une école
+       n'ouvre pas, la Commune change son affiche. La croix retire la date du jour et
+       renvoie l'établissement dans « À programmer », d'où il sera redaté. Rien n'est
+       effacé : ni le pointage, ni les photos, ni l'observation. Un span et non un
+       bouton — la ligne en est déjà un, et un bouton dans un bouton n'est pas du
+       HTML valide. */
+    if (opt.retirer) {
+      ligne.classList.add("avec-sup");
+      var sup = el("span", "ligne-sup", "✕");
+      sup.setAttribute("role", "button");
+      sup.setAttribute("tabindex", "0");
+      sup.setAttribute("aria-label", "Retirer " + e.nom + " de ce jour");
+      sup.title = "Retirer de ce jour — l'école repart dans « À programmer »";
+      var rendre = function () {
+        majSuivi(e.id, function (doc) { doc.date = ""; });
+        toast(e.nom + " — remise dans « À programmer ».");
+        rendrePlanning();
+      };
+      sup.onclick = function (ev) { ev.stopPropagation(); rendre(); };
+      sup.onkeydown = function (ev) {
+        if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); ev.stopPropagation(); rendre(); }
+      };
+      ligne.appendChild(sup);
+    }
 
     /* Programmation groupée : la ligne ne mène plus à la fiche, elle se coche.
        Une case apparaît entre le filet de priorité et le corps. */
@@ -886,10 +913,14 @@
     } else {
       if (peutCocher) bloc.appendChild(lanceurCoche());
 
+      /* La croix ne s'offre que sur les jours datés à venir — dans « À programmer »
+         il n'y a pas de date à retirer, et une école soldée ne retourne pas en
+         attente. Jamais pendant le cochage, où la ligne entière sert de case. */
+      var jourDate = S.jour === "demain" || S.jour === "aujourdhui" || S.jour === "avenir";
+      var opt = { rang: true, date: S.jour !== "libre", cocher: !!S.coche,
+        retirer: jourDate && !S.coche && S.peutEcrire !== false };
       var liste = el("div", "liste");
-      choisi.forEach(function (e) {
-        liste.appendChild(ligneEcole(e, { rang: true, date: S.jour !== "libre", cocher: !!S.coche }));
-      });
+      choisi.forEach(function (e) { liste.appendChild(ligneEcole(e, opt)); });
       bloc.appendChild(liste);
 
       if (!S.coche && (S.jour === "demain" || S.jour === "aujourdhui")) {
@@ -2692,12 +2723,81 @@
     resoudreNoms();
   }
 
+  /* ---------------- avis d'ouverture ----------------
+     Ce qu'un agent veut savoir en ouvrant l'app : les écoles en cours, c'est-à-dire
+     celles programmées aujourd'hui et pas encore soldées — le contenu de l'onglet
+     « Aujourd'hui ». L'avis paraît une fois par ouverture, dès que l'avancement est
+     connu, et s'efface seul au bout de cinq secondes. Toucher une ligne ouvre la
+     fiche ; toucher le pied le referme tout de suite. */
+  var avisFait = false, avisMinuteur = 0;
+  function fermerAvis() {
+    clearTimeout(avisMinuteur);
+    var a = $("#avis");
+    if (a && a.parentNode) a.parentNode.removeChild(a);
+  }
+  function avisEnCours() {
+    if (avisFait) return;
+    /* L'écran d'accueil passe d'abord : l'avis attend qu'on soit entré. */
+    var ac = $("#accueil");
+    if (ac && !ac.hidden) return;
+    avisFait = true;
+
+    var auj = aujourdhui();
+    var duJour = ECOLES.filter(function (e) { return datePassage(e.id) === auj; });
+    var soldees = duJour.filter(function (e) { return bilanEcole(e).fini; }).length;
+    var lot = duJour.filter(function (e) { return !bilanEcole(e).fini; })
+      .sort(function (a, b) {
+        if (a.priorite !== b.priorite) return a.priorite - b.priorite;
+        return bilanEcole(b).faits - bilanEcole(a).faits;
+      });
+    if (!lot.length) return;
+
+    var a = el("div", "avis");
+    a.id = "avis";
+    a.setAttribute("role", "status");
+    var haut = el("div", "avis-haut");
+    haut.appendChild(el("b", null, lot.length > 1
+      ? lot.length + " écoles en cours"
+      : "Une école en cours"));
+    haut.appendChild(el("span", null, "programmées aujourd'hui"
+      + (soldees ? " · " + soldees + " déjà soldée" + (soldees > 1 ? "s" : "") : "")));
+    a.appendChild(haut);
+
+    lot.slice(0, 4).forEach(function (e) {
+      var b = bilanEcole(e);
+      var w = el("button", "avis-ligne");
+      w.type = "button";
+      var g = el("div");
+      g.appendChild(el("div", null, e.nom));
+      g.appendChild(el("em", null, e.quartier + " · UC " + e.uc
+        + (datePassage(e.id) ? " · " + dateMoyenne(datePassage(e.id)) : "")
+        + (b.bloques ? " · " + b.bloques + " bloqué" + (b.bloques > 1 ? "s" : "") : "")));
+      w.appendChild(g);
+      w.appendChild(el("span", "mono", b.total ? b.faits + "/" + b.total : "à diagnostiquer"));
+      w.onclick = function () { fermerAvis(); ouvrirFiche(e.id); };
+      a.appendChild(w);
+    });
+
+    var reste = lot.length - 4;
+    var pied = el("button", "avis-pied", reste > 0
+      ? "et " + reste + " autre" + (reste > 1 ? "s" : "") + " — toucher pour fermer"
+      : "Toucher pour fermer");
+    pied.type = "button";
+    pied.onclick = fermerAvis;
+    a.appendChild(pied);
+
+    document.body.appendChild(a);
+    avisMinuteur = setTimeout(fermerAvis, 5000);
+  }
+
   /* ---------------- démarrage ---------------- */
   lireCache();
   majBandeauAttente();
   construireFiltres();
   rendrePlanning();
   marqueLien("", "Connexion…");
+  /* Filet : sans base partagée, ou si elle tarde, l'avis part de l'instantané. */
+  setTimeout(avisEnCours, 1800);
 
   $("#q").addEventListener("input", function (ev) { S.q = ev.target.value; if (S.vue === "Ecoles") rendreListe(); else rafraichir(); });
   Array.prototype.forEach.call(document.querySelectorAll(".nav button"), function (b) {
@@ -2765,7 +2865,7 @@
       }).catch(function () { installer.disabled = false; });
     };
 
-    entrer.onclick = function () { vue.hidden = true; };
+    entrer.onclick = function () { vue.hidden = true; avisEnCours(); };
   })();
 
   connecter();

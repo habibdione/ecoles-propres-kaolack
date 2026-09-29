@@ -790,6 +790,84 @@ main{padding:var(--e4) var(--e4) 100px}
   main{padding-bottom:116px}
   .fiche-inner{padding-bottom:60px}
 }
+
+/* ---------------- écrans larges : tablette, puis bureau ----------------
+   L'app est faite pour le téléphone de l'agent, et le reste. Mais elle se
+   consulte aussi au bureau, sur l'ordinateur du CSIG : la barre du bas y devient
+   un rail à gauche — une barre d'onglets collée au bas d'un grand écran n'a pas
+   de sens —, la colonne s'élargit, et les surfaces qui prenaient toute la largeur
+   cessent de s'étirer d'un bord à l'autre. Tout est sous seuil : la vue téléphone
+   ne bouge pas d'un pixel. */
+@media (min-width:680px){
+  #app{max-width:680px}
+  .nav-inner{max-width:680px}
+}
+
+@media (min-width:1000px){
+  :root{--rail:228px; --colonne:1000px}
+  #app{max-width:none; margin:0; padding-left:var(--rail)}
+
+  /* la barre du bas se redresse en rail vertical */
+  .nav{
+    top:0; bottom:0; right:auto; width:var(--rail);
+    border-top:0; border-right:1px solid var(--trait);
+    padding-bottom:0; box-shadow:1px 0 16px rgba(18,36,28,.04); overflow-y:auto;
+  }
+  .nav-inner{
+    max-width:none; margin:0; display:flex; flex-direction:column; gap:3px;
+    padding:18px 12px;
+  }
+  .nav button{
+    flex-direction:row; justify-content:flex-start; gap:12px;
+    padding:11px 13px; border-radius:10px;
+    font-size:12.5px; text-transform:none; letter-spacing:.01em;
+  }
+  .nav button:hover{background:var(--creux)}
+  .nav button[aria-current="page"]{background:var(--vert-pale)}
+  .nav svg{width:19px; height:19px}
+
+  /* fond sur toute la largeur, contenu tenu au centre */
+  .bandeau{
+    padding:16px max(28px, calc((100% - var(--colonne)) / 2)) 10px;
+    background:var(--fond); border-bottom:1px solid var(--trait);
+  }
+  main{padding:24px max(28px, calc((100% - var(--colonne)) / 2)) 56px}
+
+  /* fiche et programme laissent le rail visible : on sait toujours où l'on est */
+  .fiche, .programme{left:var(--rail)}
+  .fiche-inner{max-width:740px; padding:0 28px 64px}
+  .programme{padding:32px max(28px, calc((100% - 760px) / 2)) 64px}
+
+  /* un contrôle n'a pas à traverser l'écran pour être touché : au-delà d'une
+     certaine largeur, la cible ne gagne rien et la fiche perd sa colonne */
+  .tournee-actions, .ajout-photo, .coche-lancer{max-width:460px}
+  .coche-barre{max-width:540px}
+  .segments{max-width:520px}
+  .date-rangee{max-width:460px}
+  .zone{max-width:620px}
+  /* Le graphe est un SVG mis à l'échelle : élargi sans mesure, il grossit aussi
+     ses étiquettes. On le borne, ses chiffres gardent leur taille. */
+  .graphe-boite{max-width:700px}
+
+  /* au bureau il y a un pointeur : la ligne doit répondre au survol */
+  .ligne:hover{background:var(--creux)}
+
+  /* messages posés en bas à droite, hors du rail */
+  .avis{left:auto; right:26px; bottom:26px; margin:0; max-width:400px}
+  .toast{left:auto; right:26px; bottom:26px; transform:none}
+}
+
+/* Très grand écran : une ligne d'école étirée sur mille pixels laisse un vide
+   entre le nom et son compteur. Les listes passent alors en deux colonnes. */
+@media (min-width:1300px){
+  :root{--colonne:1180px}
+  .groupe-jour .liste, #liste{display:grid; grid-template-columns:1fr 1fr}
+  .groupe-jour .liste .ligne:nth-child(2)::before{content:none}
+  .groupe-jour .liste .ligne:nth-child(odd), #liste .ligne:nth-child(odd){
+    border-right:1px solid var(--trait);
+  }
+  #liste .ligne:nth-child(2)::before{content:none}
+}
 </style>
 
 </head>

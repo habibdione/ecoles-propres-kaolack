@@ -1049,9 +1049,37 @@ main{padding:var(--e4) var(--e4) 100px}
 <script src="suivi.js"></script>
 <script src="app.js"></script>
 <script>
+/* Agent de service : il sert d'abord ce qu'il a en cache, pour que l'app
+   s'ouvre sans reseau. Consequence : apres une publication, le premier
+   lancement montre encore l'ancienne version pendant qu'il telecharge la
+   nouvelle en arriere-plan. L'agent de terrain, lui, croit que rien n'a
+   change. On l'avertit donc des que la nouvelle version a pris la main. */
 if ("serviceWorker" in navigator) {
   addEventListener("load", function () {
     navigator.serviceWorker.register("sw.js").catch(function () {});
+  });
+  var premier = !navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener("controllerchange", function () {
+    if (premier) return;            /* premiere installation : rien a signaler */
+    if (document.getElementById("avisMaj")) return;
+    var b = document.createElement("div");
+    b.id = "avisMaj";
+    b.setAttribute("role", "status");
+    b.style.cssText = "position:fixed; left:50%; transform:translateX(-50%);" +
+      "bottom:calc(84px + env(safe-area-inset-bottom)); z-index:120;" +
+      "display:flex; gap:12px; align-items:center; max-width:calc(100% - 32px);" +
+      "padding:11px 13px 11px 16px; border-radius:12px; font:600 13px/1.35 system-ui,sans-serif;" +
+      "background:#0C7048; color:#fff; box-shadow:0 10px 34px rgba(18,36,28,.32)";
+    var t = document.createElement("span");
+    t.textContent = "Mise a jour disponible";
+    var a = document.createElement("button");
+    a.type = "button";
+    a.textContent = "Recharger";
+    a.style.cssText = "background:#fff; color:#0C7048; border:0; border-radius:8px;" +
+      "padding:7px 12px; font:700 13px system-ui,sans-serif; cursor:pointer";
+    a.onclick = function () { location.reload(); };
+    b.appendChild(t); b.appendChild(a);
+    document.body.appendChild(b);
   });
 }
 </script>

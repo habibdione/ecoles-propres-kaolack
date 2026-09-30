@@ -14,7 +14,7 @@ la page ouverte une première fois, elle s'ouvre encore sans réseau.
   Le bouton **Programmer pour ce jour** date plusieurs écoles en une fois, et renvoie
   à *À programmer* une tournée reportée : le planning se refait chaque jour depuis
   le téléphone, sans rien republier.
-- **Écoles** — les 48 établissements relevés au GPS, filtrables par unité communale,
+- **Écoles** — les 53 établissements relevés au GPS, filtrables par unité communale,
   par avancement et par service pilote ; 184 interventions à pointer.
 - **Carte** — fond OpenStreetMap vectoriel (voirie, hydrographie, 44 quartiers),
   zoom et déplacement, sans consommer de données mobiles.
@@ -59,7 +59,7 @@ pour les transmettre, exporter le relevé CSV depuis le Bilan.
 
 Par défaut, chaque agent ne voit que ses propres saisies. Pour que tout le monde
 travaille sur les mêmes données, il faut une base hébergée. L'application est prête
-pour **Supabase**, dont l'offre gratuite suffit largement pour 48 écoles.
+pour **Supabase**, dont l'offre gratuite suffit largement pour une cinquantaine d'écoles.
 
 **À faire une seule fois, par vous — je ne peux pas créer de compte à votre place :**
 

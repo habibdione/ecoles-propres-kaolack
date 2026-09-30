@@ -1,5 +1,6 @@
 /* Écoles Propres Kaolack — suivi des opérations de nettoiement
-   Catalogue des 48 établissements : donnees.js (relevés GPS des tournées J1–J3).
+   Catalogue des établissements : donnees.js (relevés GPS des tournées J1–J3,
+   complété par les relevés au fil des opérations).
    Avancement : base partagée de l'artefact (capacité db), photos : capacité assets. */
 (function () {
   "use strict";
@@ -1157,7 +1158,7 @@
     return "var(--trait-fort)";
   }
 
-  /* Cadrage : les 48 écoles occupent le nord-est de la commune — on cadre sur elles
+  /* Cadrage : les écoles occupent le nord-est de la commune — on cadre sur elles
      (le reste du fond de plan est simplement rogné) pour garder des points lisibles. */
   var ZOOM_MIN = 1, ZOOM_MAX = 10;
 
@@ -2643,7 +2644,8 @@
       "et mobilier à la Commune / Génie militaire ; murs, enduits, menuiseries et latrines aux Constructions scolaires. " +
       "Le désherbage chimique se compte à part : l'équipe dédiée du Cadre de Vie traite l'herbe à l'herbicide " +
       "avant le passage des agents, pour que la coupe et le ratissage leur soient plus faciles. " +
-      "48 établissements, " + ECOLES.reduce(function (n, e) { return n + e.taches.length; }, 0) + " interventions recensées.";
+      nbEtab(ECOLES) + " établissements relevés au GPS, " +
+      ECOLES.reduce(function (n, e) { return n + e.taches.length; }, 0) + " interventions recensées.";
     v.appendChild(note);
   }
 

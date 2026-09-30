@@ -47,13 +47,16 @@ Cette version-ci est autonome, donc :
 |---|---|---|
 | Consultation (planning, carte, photos, bilan) | oui | oui |
 | Pointage des interventions | partagé entre tous | local, ou partagé via Supabase (ci-dessous) |
-| Ajout de photos depuis le téléphone | oui | non |
+| Ajout de photos depuis le téléphone | oui | oui, via Supabase (ci-dessous) |
 | Export CSV | oui | oui |
 | Fonctionne sans réseau | partiellement | oui, entièrement |
 
 L'avancement livré avec l'app est un **instantané** (`suivi.js`) figé au moment de la
-construction. Les saisies faites localement le recouvrent et restent sur l'appareil ;
-pour les transmettre, exporter le relevé CSV depuis le Bilan.
+construction. Dès que la base partagée répond, elle le remplace.
+
+Les photos prises sur le terrain partent dans le stockage Supabase, pas dans le dépôt :
+les ajouter ne demande **aucune republication**. Elles sont visibles par tous dès
+l'envoi, et se remettent en cache pour la consultation hors réseau.
 
 ## Activer la saisie partagée
 

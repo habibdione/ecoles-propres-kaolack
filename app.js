@@ -167,6 +167,11 @@
      d'un autre service. */
   function horsProgramme(e) { return !e.ordre; }
 
+  /* Un établissement peut entrer au programme avant d'avoir été relevé au GPS :
+     sa fiche existe et se pointe, mais la carte et l'itinéraire l'ignorent tant
+     que sa position n'est pas prise. */
+  function situee(e) { return typeof e.lat === "number" && typeof e.lon === "number"; }
+
   /* Le programme compte 47 établissements pour 45 fiches : Cheikh Ahmed Tidiane
      Niass 1 et 2, comme Tanor Dieng 1 et 2, partagent chacun un même site.
      Sept écoles y ont été versées après le planning initial et portent la mention
@@ -678,6 +683,7 @@
      au GPS dans le cadre où elle s'affiche. Quand une position a pu être relevée,
      on la passe explicitement en origin. */
   function urlItineraire(lot) {
+    lot = (lot || []).filter(situee);
     if (!lot.length) return null;
     var l = lot.slice(0, 10);
     var arrivee = l[l.length - 1];
@@ -696,7 +702,14 @@
      téléphone, qui part alors de la position réelle de l'agent. */
   function boutonItineraire(libelle, lot, plein) {
     var a = el("a", "btn" + (plein ? " plein" : "") + " large", libelle);
-    a.href = urlItineraire(lot);
+    var url = urlItineraire(lot);
+    if (!url) {
+      a.classList.add("desactive");
+      a.setAttribute("aria-disabled", "true");
+      a.title = "Position non relevée";
+      return a;
+    }
+    a.href = url;
     a.target = "_blank";
     a.rel = "noopener noreferrer";
     return a;
@@ -1180,8 +1193,12 @@
      la commune s'étendant loin au sud-ouest sans aucun établissement. */
   var CENTRE_ECOLES = (function () {
     var x = 0, y = 0;
-    ECOLES.forEach(function (e) { x += PROJ.x(e.lon); y += PROJ.y(e.lat); });
-    return [x / ECOLES.length, y / ECOLES.length];
+    var n = 0;
+    ECOLES.forEach(function (e) {
+      if (!situee(e)) return;
+      x += PROJ.x(e.lon); y += PROJ.y(e.lat); n++;
+    });
+    return [x / n, y / n];
   })();
 
   function majViewBox() {
@@ -1212,6 +1229,9 @@
     if (!lot || !lot.length) return;
     if (lot.length === 1) { viserEcole(lot[0].id); return; }
     var x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    lot = lot.filter(situee);
+    if (!lot.length) return;
+    if (lot.length === 1) { viserEcole(lot[0].id); return; }
     lot.forEach(function (e) {
       var x = PROJ.x(e.lon), y = PROJ.y(e.lat);
       if (x < x0) x0 = x; if (x > x1) x1 = x;
@@ -1229,7 +1249,7 @@
   /* Cadrer la carte sur une école précise. */
   function viserEcole(id) {
     var e = ECOLES.filter(function (x) { return x.id === id; })[0];
-    if (!e) return;
+    if (!e || !situee(e)) return;
     S.selection = id;
     S.centre = [PROJ.x(e.lon), PROJ.y(e.lat)];
     S.zoom = Math.max(S.zoom, 5);
@@ -1335,7 +1355,7 @@
     var pts = [], visibles = ecolesFiltrees();
     var ids = {}; visibles.forEach(function (e) { ids[e.id] = 1; });
     ECOLES.forEach(function (e) {
-      if (!ids[e.id]) return;
+      if (!ids[e.id] || !situee(e)) return;
       /* Marqueur dessiné autour de l'origine, positionné par translate : le
          groupe est remis à l'échelle 1/zoom pour garder une taille constante
          à l'écran, donc toujours atteignable au doigt. */
@@ -1983,7 +2003,9 @@
     /* pied : coordonnées + itinéraire */
     var pied = el("div", "bloc");
     var coord = el("div", "ligne-meta");
-    coord.appendChild(el("span", "code mono", e.lat.toFixed(6) + " N · " + e.lon.toFixed(6) + " E"));
+    coord.appendChild(el("span", "code mono", situee(e)
+      ? e.lat.toFixed(6) + " N · " + e.lon.toFixed(6) + " E"
+      : "Position à relever"));
     pied.appendChild(coord);
     var actions = el("div", "tournee-actions");
     actions.appendChild(boutonItineraire("M'y conduire", [e], true));
@@ -2661,7 +2683,8 @@
         l.push([
           e.codes.join(" "), e.nom, e.quartier, "UC " + e.uc, e.tournee,
           e.ordre || "hors programme", datePassage(e.id) || "non programmée", e.priorite,
-          e.inondation ? "oui" : "non", e.lat, e.lon, t.label, t.service,
+          e.inondation ? "oui" : "non",
+          situee(e) ? e.lat : "", situee(e) ? e.lon : "", t.label, t.service,
           /* un état inconnu ne doit pas faire échouer tout le relevé */
           (st && (ETATS.filter(function (x) { return x.k === st.e; })[0] || {}).long) || "À faire",
           (st && st.m) || "",

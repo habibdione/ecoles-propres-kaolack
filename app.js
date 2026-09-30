@@ -166,11 +166,12 @@
      d'un autre service. */
   function horsProgramme(e) { return !e.ordre; }
 
-  /* Le programme compte 44 établissements pour 42 fiches : Cheikh Ahmed Tidiane
+  /* Le programme compte 47 établissements pour 45 fiches : Cheikh Ahmed Tidiane
      Niass 1 et 2, comme Tanor Dieng 1 et 2, partagent chacun un même site.
-     Quatre écoles traitées les 28 et 29 septembre hors planning initial —
-     Ndangane 3 et 4, El Hadji Serigne Diaw et Parcelle 1 — y ont été versées :
-     elles portent la mention « ajoutée » dans leur fiche. */
+     Sept écoles y ont été versées après le planning initial et portent la mention
+     « ajoutée » : Ndangane 3 et 4, El Hadji Serigne Diaw et Parcelle 1, traitées
+     les 28 et 29 septembre ; Moussa Sow et sa case des tout-petits à Kassaville,
+     El Hadji Seck Faye à Kasnack, relevées au GPS le 30 septembre. */
   function nbEtab(liste) {
     return liste.reduce(function (n, e) { return n + e.codes.length; }, 0);
   }

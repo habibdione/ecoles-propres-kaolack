@@ -801,6 +801,38 @@ main{padding:var(--e4) var(--e4) 100px}
 @media (min-width:680px){
   #app{max-width:680px}
   .nav-inner{max-width:680px}
+  .accueil-carte{max-width:620px; padding:26px 28px}
+}
+
+/* L'écran d'accueil est la première chose qu'on voit au bureau. Une carte de
+   460 px perdue au milieu d'un écran large donne l'impression d'un site cassé :
+   elle s'ouvre donc en deux colonnes, le texte à gauche et la carte de situation
+   à droite. La ligne de texte ne s'allonge pas pour autant. */
+@media (min-width:1000px){
+  .accueil{padding:34px 28px}
+  .accueil-carte{
+    max-width:1120px; padding:36px 40px;
+    display:grid; align-content:start; column-gap:42px;
+    grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);
+    grid-template-areas:
+      "titre plan"
+      "sous  plan"
+      "svc   plan"
+      "liste plan"
+      "act   plan"
+      "aide  plan";
+  }
+  .accueil h1{grid-area:titre; font-size:32px; margin-bottom:12px}
+  .accueil-sous{grid-area:sous; font-size:14px; margin-bottom:22px}
+  .accueil-services{
+    grid-area:svc; grid-template-columns:repeat(6,1fr); gap:12px 8px; margin-bottom:24px;
+  }
+  .accueil-services img{height:40px}
+  .accueil-plan{grid-area:plan; margin:0; align-self:center}
+  .accueil-liste{grid-area:liste; font-size:14.5px; margin-bottom:24px}
+  .accueil-actions{grid-area:act; flex-direction:row; gap:var(--e3)}
+  .accueil-actions .btn{flex:1}
+  .accueil-aide{grid-area:aide}
 }
 
 @media (min-width:1000px){
@@ -861,12 +893,20 @@ main{padding:var(--e4) var(--e4) 100px}
    entre le nom et son compteur. Les listes passent alors en deux colonnes. */
 @media (min-width:1300px){
   :root{--colonne:1180px}
+  .accueil-carte{max-width:1280px}
   .groupe-jour .liste, #liste{display:grid; grid-template-columns:1fr 1fr}
   .groupe-jour .liste .ligne:nth-child(2)::before{content:none}
   .groupe-jour .liste .ligne:nth-child(odd), #liste .ligne:nth-child(odd){
     border-right:1px solid var(--trait);
   }
   #liste .ligne:nth-child(2)::before{content:none}
+}
+
+/* Au-delà, la colonne de lecture s'élargit encore : sur un 24 pouces, s'arrêter
+   à 1180 px laisse deux bandes vides de part et d'autre. */
+@media (min-width:1600px){
+  :root{--colonne:1420px}
+  .accueil-carte{max-width:1420px}
 }
 </style>
 
@@ -974,7 +1014,7 @@ main{padding:var(--e4) var(--e4) 100px}
         <figcaption>Localisation des écoles</figcaption>
       </figure>
       <ul class="accueil-liste">
-        <li><b>48 établissements</b> relevés au GPS, 181 interventions à pointer.</li>
+        <li><b>48 établissements</b> relevés au GPS, 184 interventions à pointer.</li>
         <li><b>Planning du jour</b>, avec l'itinéraire enchaîné vers Google Maps.</li>
         <li><b>Carte hors réseau</b> : fond OpenStreetMap embarqué, sans données mobiles.</li>
         <li><b>Saisie partagée</b> : ce qu'un agent pointe, les autres le voient.</li>

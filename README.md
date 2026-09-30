@@ -15,7 +15,7 @@ la page ouverte une première fois, elle s'ouvre encore sans réseau.
   à *À programmer* une tournée reportée : le planning se refait chaque jour depuis
   le téléphone, sans rien republier.
 - **Écoles** — les 48 établissements relevés au GPS, filtrables par unité communale,
-  par avancement et par service pilote ; 181 interventions à pointer.
+  par avancement et par service pilote ; 184 interventions à pointer.
 - **Carte** — fond OpenStreetMap vectoriel (voirie, hydrographie, 44 quartiers),
   zoom et déplacement, sans consommer de données mobiles.
 - **Bilan** — avancement par UC et par service, courbe d'évolution, rythme quotidien,

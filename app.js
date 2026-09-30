@@ -23,6 +23,7 @@
   var MOTIFS = ["École fermée", "Matériel absent", "Eau stagnante", "Accès refusé", "Autre"];
   var SERVICES = [
     { nom: "SONAGED", css: "--sv-sonaged" },
+    { nom: "Cadre de Vie", css: "--sv-cadre" },
     { nom: "Service d'Hygiène", css: "--sv-hygiene" },
     { nom: "Constructions scolaires", css: "--sv-const" },
     { nom: "Commune / Génie militaire", css: "--sv-genie" },
@@ -2603,7 +2604,7 @@
     var bd = el("div", "bloc");
     bd.appendChild(el("div", "bloc-titre")).appendChild(el("span", null, "Dispositif"));
     var disp = el("div", "dispositif");
-    [["logos/cadredevie.png", "Cadre de Vie", "Tutelle du programme de nettoiement"],
+    [["logos/cadredevie.png", "Cadre de Vie", "Tutelle du programme · désherbage chimique avant le passage des agents"],
     ["logos/sonaged.png", "SONAGED", "Élagage, désherbage, enlèvement et dépôt des déchets"],
     ["logos/hygiene.png", "Service d'Hygiène", "Pompage, curages, eaux stagnantes, traitement anti-larvaire"],
     ["logos/commune.png", "Commune de Kaolack", "Maîtrise d'ouvrage · nivellement, remblais, dallage"],
@@ -2636,6 +2637,8 @@
     note.innerHTML = "Périmètre arrêté par le CSIG le 21/09 : dans les établissements scolaires, la SONAGED intervient pour " +
       "l'élagage, le désherbage et l'enlèvement des déchets ; le curage revient au Service d'Hygiène ; gravats, branches " +
       "et mobilier à la Commune / Génie militaire ; murs, enduits, menuiseries et latrines aux Constructions scolaires. " +
+      "Le désherbage chimique se compte à part : l'équipe dédiée du Cadre de Vie traite l'herbe à l'herbicide " +
+      "avant le passage des agents, pour que la coupe et le ratissage leur soient plus faciles. " +
       "48 établissements, " + ECOLES.reduce(function (n, e) { return n + e.taches.length; }, 0) + " interventions recensées.";
     v.appendChild(note);
   }

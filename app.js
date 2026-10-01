@@ -3212,6 +3212,78 @@
   /* Filet : sans base partagée, ou si elle tarde, l'avis part de l'instantané. */
   setTimeout(avisEnCours, 1800);
 
+  /* ---------------- recherche d'ouverture ----------------
+     Celle de l'onglet Écoles filtre la liste ; celle-ci ouvre une fiche depuis
+     n'importe quel onglet. En réunion, « montrez-nous telle école » ne doit pas
+     obliger à quitter le Bilan. */
+  (function () {
+    var champ = $("#chercheQ"), res = $("#chercheListe");
+    if (!champ || !res) return;
+
+    function etatCourt(e) {
+      var b = bilanEcole(e);
+      if (b.fini) return "soldée";
+      if (horsProgramme(e)) return "autre service";
+      if (sautee(e, rangsAtteints())) return "sautée · " + contrainte(e).court.toLowerCase();
+      var d = datePassage(e.id);
+      if (d) return "programmée le " + dateMoyenne(d);
+      return b.demarre ? "en cours" : "à programmer";
+    }
+
+    function fermer() {
+      res.hidden = true;
+      res.innerHTML = "";
+      champ.setAttribute("aria-expanded", "false");
+    }
+
+    function chercher() {
+      var q = champ.value.trim().toLowerCase();
+      if (q.length < 2) { fermer(); return; }
+      var trouves = ECOLES.filter(function (e) {
+        return (e.nom + " " + e.quartier + " " + e.codes.join(" ")).toLowerCase().indexOf(q) !== -1;
+      }).slice(0, 8);
+      res.innerHTML = "";
+      if (!trouves.length) {
+        res.appendChild(el("div", "cherche-vide", "Aucune école ne correspond."));
+      } else {
+        trouves.forEach(function (e) {
+          var b = el("button", null);
+          b.type = "button";
+          b.setAttribute("role", "option");
+          b.appendChild(el("span", "cherche-nom", e.nom));
+          b.appendChild(el("span", "cherche-meta", e.quartier + " · UC " + e.uc + " · " +
+            e.codes[0] + " · " + etatCourt(e)));
+          b.onclick = function () {
+            champ.value = "";
+            fermer();
+            champ.blur();
+            ouvrirFiche(e.id);
+          };
+          res.appendChild(b);
+        });
+      }
+      res.hidden = false;
+      champ.setAttribute("aria-expanded", "true");
+    }
+
+    champ.addEventListener("input", chercher);
+    champ.addEventListener("focus", chercher);
+    champ.addEventListener("keydown", function (ev) {
+      if (ev.key === "Escape") { champ.value = ""; fermer(); champ.blur(); }
+      else if (ev.key === "ArrowDown") {
+        var p = res.querySelector("button");
+        if (p) { ev.preventDefault(); p.focus(); }
+      } else if (ev.key === "Enter") {
+        var pr = res.querySelector("button");
+        if (pr) { ev.preventDefault(); pr.click(); }
+      }
+    });
+    /* un clic ailleurs referme, mais pas un clic sur un résultat */
+    document.addEventListener("pointerdown", function (ev) {
+      if (!$("#cherche").contains(ev.target)) fermer();
+    });
+  })();
+
   $("#q").addEventListener("input", function (ev) { S.q = ev.target.value; if (S.vue === "Ecoles") rendreListe(); else rafraichir(); });
   Array.prototype.forEach.call(document.querySelectorAll(".nav button"), function (b) {
     b.addEventListener("click", function () { allerA(b.getAttribute("data-vue")); });

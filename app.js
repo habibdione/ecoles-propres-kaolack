@@ -2329,7 +2329,7 @@
     var total = ECOLES.reduce(function (n, e) { return n + e.taches.length; }, 0);
     var fait = serie.length ? serie[serie.length - 1].cumul : 0;
 
-    var b = el("div", "bloc");
+    var b = el("div", "bloc bloc-evolution");
     var t = el("div", "bloc-titre");
     t.appendChild(el("span", null, "Évolution du suivi"));
     t.appendChild(el("span", "rang mono", fait + " / " + total));
@@ -2342,7 +2342,7 @@
     }
 
     b.appendChild(el("p", "graphe-titre", "Interventions réalisées, en cumul"));
-    var c1 = el("div", "graphe-boite");
+    var c1 = el("div", "graphe-boite g-cumul");
     var g = courbeCumul(serie, total);
     c1.innerHTML = g.html;
     var info = el("div", "graphe-info");
@@ -2351,7 +2351,7 @@
     b.appendChild(c1);
 
     b.appendChild(el("p", "graphe-titre", "Rythme quotidien"));
-    var c2 = el("div", "graphe-boite");
+    var c2 = el("div", "graphe-boite g-rythme");
     c2.innerHTML = barresJour(serie);
     b.appendChild(c2);
 
@@ -2429,18 +2429,50 @@
     v.innerHTML = "";
     var lot = S.uc ? ECOLES.filter(function (e) { return e.uc === S.uc; }) : ECOLES;
     var a = agreger(lot);
-    var finies = lot.filter(function (e) { return bilanEcole(e).fini; }).length;
+    /* Les compteurs portent sur le programme, pas sur le catalogue : six
+       établissements relevés n'en font pas partie — ils n'ont aucune activité
+       de désherbage, ou leur intervention revient à un autre service. Les
+       mêler donnerait un taux faussement bas, indéfendable en réunion. */
+    var auProg = lot.filter(function (e) { return !horsProgramme(e); });
+    var soldees = auProg.filter(function (e) { return bilanEcole(e).fini; });
+    var nSold = nbEtab(soldees), nProg = nbEtab(auProg);
+
+    /* de quand parle-t-on, et d'après quoi */
+    var sit = el("div", "situation");
+    var sh = el("div", "situation-haut");
+    sh.appendChild(el("span", "situation-jour",
+      "Situation arrêtée au " + dateLongue(aujourdhui()).toLowerCase()));
+    sh.appendChild(el("span", "situation-jn",
+      "J+" + joursEntre(CAMPAGNE.debut, aujourdhui())));
+    sit.appendChild(sh);
+    sit.appendChild(el("p", "situation-src",
+      (S.db || DISTANT ? "Relevé dans la base partagée, mise à jour en continu par les agents."
+                       : "Relevé local : les saisies des autres agents ne sont pas visibles.") +
+      " Démarrage le " + dateLongue(CAMPAGNE.debut).toLowerCase() + "." +
+      (S.uc ? " Vue restreinte à l'UC " + S.uc + "." : "")));
+    v.appendChild(sit);
 
     var k = el("div", "kpis");
-    [[a.total ? Math.round(100 * a.faits / a.total) + " %" : "0 %", "Interventions réalisées"],
-    [finies + "/" + lot.length, "Écoles soldées"],
-    [String(a.bloques), "Points bloqués"]].forEach(function (p) {
-      var c = el("div", "kpi");
+    [[nSold + "/" + nProg, "Établissements soldés", "vert"],
+    [(a.total ? Math.round(100 * a.faits / a.total) : 0) + " %", "Interventions réalisées", ""],
+    [String(nProg - nSold), "Restent à traiter", ""],
+    [String(a.bloques), "Points bloqués", a.bloques ? "laterite" : ""]].forEach(function (p) {
+      var c = el("div", "kpi" + (p[2] ? " kpi-" + p[2] : ""));
       c.appendChild(el("div", "n mono", p[0]));
       c.appendChild(el("div", "l", p[1]));
       k.appendChild(c);
     });
     v.appendChild(k);
+
+    var hors = lot.filter(horsProgramme);
+    v.appendChild(el("p", "situation-pied",
+      "Programme arrêté : " + nProg + " établissements" +
+      (S.uc ? " en UC " + S.uc : " répartis sur trois unités communales") + ", " +
+      auProg.length + " fiches. " +
+      (hors.length ? hors.length + " autres établissements ont été relevés sans entrer au " +
+                     "programme de nettoiement : leur intervention revient à un autre service."
+                   : "")));
+
     v.appendChild(blocEvolution());
 
     /* calendrier */
@@ -2473,9 +2505,14 @@
     var b1 = el("div", "bloc");
     b1.appendChild(el("div", "bloc-titre")).appendChild(el("span", null, "Avancement par unité communale"));
     [1, 2, 3].forEach(function (n) {
-      var l = ECOLES.filter(function (e) { return e.uc === n; });
-      b1.appendChild(barre("UC " + n + " · " + l.length + " écoles", null, agreger(l)));
+      var l = ECOLES.filter(function (e) { return e.uc === n && !horsProgramme(e); });
+      var f = l.filter(function (e) { return bilanEcole(e).fini; });
+      b1.appendChild(barre("UC " + n + " · " + nbEtab(f) + "/" + nbEtab(l) + " établissements soldés",
+                           null, agreger(l)));
     });
+    b1.appendChild(el("p", "note-pied", "La barre mesure les interventions pointées ; le compte " +
+      "en tête de ligne, les établissements entièrement soldés. Une école peut avoir trois " +
+      "interventions sur quatre sans être soldée."));
     v.appendChild(b1);
 
     var b2 = el("div", "bloc");
@@ -2493,6 +2530,62 @@
       if (acc.total) b2.appendChild(barre(sv.nom, "var(" + sv.css + ")", acc));
     });
     v.appendChild(b2);
+
+    /* Ce que le travail a couvert : de quoi répondre sans chercher. */
+    var quartiers = {}, photos = 0, pointees = 0;
+    soldees.forEach(function (e) { quartiers[e.quartier] = 1; });
+    lot.forEach(function (e) {
+      photos += (suiviDe(e.id).photos || []).length;
+      e.taches.forEach(function (t) { if (etatTache(e.id, t.id) === "fait") pointees++; });
+    });
+    var bc = el("div", "bloc");
+    bc.appendChild(el("div", "bloc-titre")).appendChild(el("span", null, "Couverture"));
+    var gc = el("div", "couverture");
+    [[String(Object.keys(quartiers).length), "quartiers touchés"],
+    [pointees + " / " + a.total, "interventions pointées"],
+    [String(photos), "photos versées du terrain"],
+    [String(Object.keys(EXEC).length), "fiches d'exécution"]].forEach(function (x) {
+      var c = el("div", "couv");
+      c.appendChild(el("div", "n mono", x[0]));
+      c.appendChild(el("div", "l", x[1]));
+      gc.appendChild(c);
+    });
+    bc.appendChild(gc);
+    v.appendChild(bc);
+
+    /* Le désherbage chimique n'apparaissait nulle part au Bilan, alors qu'il
+       explique pourquoi trois écoles sont datées sans être soldées. */
+    var prea = lot.filter(function (e) {
+      return e.taches.some(function (t) { return t.service === "Cadre de Vie"; }) &&
+             !bilanEcole(e).fini;
+    });
+    if (prea.length) {
+      var bp = el("div", "bloc");
+      var tp = el("div", "bloc-titre");
+      tp.appendChild(el("span", null, "Traitées à l'herbicide, en attente de coupe"));
+      tp.appendChild(el("span", "mono", prea.length + ""));
+      bp.appendChild(tp);
+      bp.appendChild(el("p", "note-hors", "L'équipe dédiée du Cadre de Vie traite l'herbe à " +
+        "l'herbicide avant le passage des agents, pour que la coupe et le ratissage soient " +
+        "plus faciles. Ces écoles portent donc une date de passage sans être soldées."));
+      var lp = el("div", "alerte-liste");
+      prea.forEach(function (e) {
+        var w = el("div", "alerte");
+        var pt = el("span", "pt");
+        pt.style.background = "var(--sv-cadre)";
+        w.appendChild(pt);
+        var tx = el("div");
+        tx.appendChild(el("div", null, e.nom));
+        tx.appendChild(el("em", null, e.quartier + " · UC " + e.uc +
+          (datePassage(e.id) ? " · traitée le " + dateMoyenne(datePassage(e.id)) : "")));
+        w.appendChild(tx);
+        w.style.cursor = "pointer";
+        w.onclick = function () { ouvrirFiche(e.id); };
+        lp.appendChild(w);
+      });
+      bp.appendChild(lp);
+      v.appendChild(bp);
+    }
 
     var urgentes = lot.filter(function (e) { return e.priorite === 1 && !bilanEcole(e).fini; });
     var b3 = el("div", "bloc");

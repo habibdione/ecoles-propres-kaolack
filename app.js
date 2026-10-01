@@ -22,6 +22,21 @@
     { k: "bloque", court: "Bloqué", long: "Bloqué" }
   ];
   var MOTIFS = ["École fermée", "Matériel absent", "Eau stagnante", "Accès refusé", "Autre"];
+  /* Ce qu'une reconnaissance de la veille peut constater. « Prête » est le
+     constat le plus utile : il lève une contrainte que le diagnostic de
+     septembre avait notée, et renvoie l'école à la programmation. */
+  var CONSTATS = [
+    { cle: "prete", court: "Prête", long: "Rien ne retient l'école : elle peut être programmée" },
+    { cle: "eau", court: "Eau stagnante", long: "Cour sous l'eau : le pompage du Service d'Hygiène est préalable" },
+    { cle: "chimique", court: "Herbicide posé", long: "Traitée à l'herbicide, la coupe attend que le produit agisse" },
+    { cle: "fermee", court: "École fermée", long: "Établissement fermé le jour du passage" },
+    { cle: "acces", court: "Accès refusé", long: "L'accès au site n'a pas été accordé" },
+    { cle: "autre", court: "Autre", long: "Autre contrainte, précisée en observation" }
+  ];
+  function constatDe(cle) {
+    for (var i = 0; i < CONSTATS.length; i++) if (CONSTATS[i].cle === cle) return CONSTATS[i];
+    return null;
+  }
   var SERVICES = [
     { nom: "SONAGED", css: "--sv-sonaged" },
     { nom: "Cadre de Vie", css: "--sv-cadre" },
@@ -166,6 +181,79 @@
      soit elle n'a pas d'activité de désherbage, soit ses interventions relèvent
      d'un autre service. */
   function horsProgramme(e) { return !e.ordre; }
+
+  /* ---------------- écoles sautées ----------------
+     Une tournée ne se déroule pas toujours dans l'ordre : une cour sous l'eau
+     attend le pompage du Service d'Hygiène, une emprise traitée à l'herbicide
+     attend que le produit agisse. L'équipe passe à la suivante, et l'école
+     reste en arrière sans que rien ne le signale. Ces trois fonctions la
+     rattrapent, et disent pourquoi. */
+
+  /* Rang le plus avancé déjà soldé dans chaque unité : au-delà, l'équipe est
+     passée. Recalculé à chaque rendu, l'avancement bougeant en continu. */
+  function rangsAtteints() {
+    var m = {};
+    ECOLES.forEach(function (e) {
+      if (e.ordre && bilanEcole(e).fini) m[e.uc] = Math.max(m[e.uc] || 0, e.ordre);
+    });
+    return m;
+  }
+
+  /* La contrainte qui retient l'école, lue dans le diagnostic et le pointage.
+     Un motif saisi par un agent prime sur tout : c'est un constat de terrain. */
+  function contrainte(e) {
+    /* Un relevé de reconnaissance prime sur tout : il date de la veille, le
+       diagnostic date du 4 septembre. */
+    var rec = suiviDe(e).constat;
+    if (rec && rec.cle) {
+      var c = constatDe(rec.cle);
+      if (c) {
+        return { court: c.court, cle: c.cle === "fermee" || c.cle === "acces" ? "bloque" : c.cle,
+                 long: c.long + (rec.le ? " — relevé le " + dateMoyenne(rec.le.slice(0, 10)) : ""),
+                 releve: true };
+      }
+    }
+    var d = suiviDe(e).taches || {};
+    for (var i = 0; i < e.taches.length; i++) {
+      var t = d[e.taches[i].id];
+      if (t && t.e === "bloque") {
+        return { court: t.m || "Bloquée", long: (t.m || "Intervention bloquée") +
+                 " — " + e.taches[i].label, cle: "bloque" };
+      }
+    }
+    var chimique = false, pompage = false;
+    e.taches.forEach(function (t) {
+      var fait = etatTache(e.id, t.id) === "fait";
+      if (t.service === "Cadre de Vie" && fait) chimique = true;
+      if (!fait && /pompage|stagnante/i.test(t.label)) pompage = true;
+    });
+    if (pompage) {
+      return { court: "Eau stagnante", cle: "eau",
+               long: "Le pompage du Service d'Hygiène conditionne le nettoiement" };
+    }
+    if (chimique) {
+      return { court: "Herbicide posé", cle: "chimique",
+               long: "Traitée à l'herbicide par le Cadre de Vie, en attente de coupe" };
+    }
+    if (e.inondation) {
+      return { court: "Inondation", cle: "eau",
+               long: "Inondation constatée au diagnostic" };
+    }
+    return { court: "Motif à préciser", cle: "autre",
+             long: "Aucune contrainte n'a été saisie : à renseigner depuis la fiche" };
+  }
+
+  function sautee(e, atteints) {
+    if (horsProgramme(e) || bilanEcole(e).fini) return false;
+    var rec = suiviDe(e).constat;
+    if (rec && rec.cle === "prete") return false;   /* la contrainte est levée */
+    var dt = datePassage(e.id);
+    var auj = aujourdhui();
+    if (dt && dt >= auj) return false;        /* programmée aujourd'hui ou plus tard */
+    if (dt && dt < auj) return true;          /* le jour est passé, le travail non */
+    if (contrainte(e).cle === "bloque") return true;
+    return e.ordre < (atteints[e.uc] || 0);   /* l'équipe a soldé plus loin */
+  }
 
   /* Un établissement peut entrer au programme avant d'avoir été relevé au GPS :
      sa fiche existe et se pointe, mais la carte et l'itinéraire l'ignorent tant
@@ -578,6 +666,12 @@
     }
     meta.appendChild(el("span", "code mono", e.codes[0]));
     meta.appendChild(el("span", null, e.quartier));
+    if (opt.motif) {
+      var ct = contrainte(e);
+      var pc = el("span", "motif motif-" + ct.cle, ct.court);
+      pc.title = ct.long;
+      meta.appendChild(pc);
+    }
     meta.appendChild(el("span", "code", "UC " + e.uc));
     if (e.inondation) {
       var g = el("span", "goutte");
@@ -665,17 +759,20 @@
     if (a.ordre && b.ordre && a.ordre !== b.ordre) return a.ordre - b.ordre;
     return a.priorite - b.priorite;
   }
-  function seau(e) {
+  function seau(e, atteints) {
     /* Une école soldée est passée, quelle que soit la date portée au planning :
        le jour n'a plus à la présenter comme un travail à faire, et une école
-       terminée sans date n'a rien à faire dans « À programmer ». */
+       terminée sans date n'a rien à faire dans « À programmer ».
+       « Passées » ne garde donc que les soldées : une école dont le jour est
+       passé sans que le travail soit fait a été sautée, et c'est autre chose. */
     if (bilanEcole(e).fini) return "passees";
     var d = datePassage(e.id);
-    if (!d) return "libre";
     var auj = aujourdhui();
     if (d === auj) return "aujourdhui";
     if (d === decale(auj, 1)) return "demain";
-    return d > auj ? "avenir" : "passees";
+    if (d && d > auj) return "avenir";
+    if (sautee(e, atteints || rangsAtteints())) return "sautees";
+    return "libre";
   }
 
   /* Itinéraire Google Maps. Sans paramètre origin, Maps part de la position du
@@ -721,8 +818,9 @@
      Leur ligne le rappelle, et le bloc du bas continue de dire quel service est en
      charge de celles qui ne sont pas déjà à l'écran. */
   function repartir(lot) {
-    var s = { aujourdhui: [], demain: [], avenir: [], libre: [], passees: [] };
-    lot.forEach(function (e) { s[seau(e)].push(e); });
+    var s = { aujourdhui: [], demain: [], avenir: [], libre: [], sautees: [], passees: [] };
+    var atteints = rangsAtteints();
+    lot.forEach(function (e) { s[seau(e, atteints)].push(e); });
     return s;
   }
 
@@ -843,7 +941,8 @@
 
     var onglets = el("div", "filtres");
     [["demain", "Demain"], ["aujourdhui", "Aujourd'hui"], ["avenir", "Jours suivants"],
-     ["libre", "À programmer"], ["passees", "Passées"]].forEach(function (p) {
+     ["sautees", "Sautées"], ["libre", "À programmer"],
+     ["passees", "Passées"]].forEach(function (p) {
       var n = seaux[p[0]].length;
       var b = el("button", "puce", p[1] + (n ? " · " + n : ""));
       b.setAttribute("aria-pressed", String(S.jour === p[0]));
@@ -867,6 +966,16 @@
       aujourdhui: ["Intervention du jour", dateLongue(auj)],
       avenir: ["Jours suivants", "programmées au-delà de demain"],
       libre: ["À programmer", "au programme de nettoiement, sans date fixée"],
+      sautees: ["Écoles sautées", (function () {
+        var c = {};
+        seaux.sautees.forEach(function (e) {
+          var k = contrainte(e).court;
+          c[k] = (c[k] || 0) + 1;
+        });
+        var l = Object.keys(c).map(function (k) { return c[k] + " " + k.toLowerCase(); });
+        return l.length ? "les équipes sont passées devant : " + l.join(", ")
+                        : "aucune école n'a été sautée";
+      })()],
       passees: ["Passées", (function () {
         var f = seaux.passees.filter(function (e) { return bilanEcole(e).fini; }).length;
         var r = seaux.passees.length - f;
@@ -942,7 +1051,15 @@
          attente. Jamais pendant le cochage, où la ligne entière sert de case. */
       var jourDate = S.jour === "demain" || S.jour === "aujourdhui" || S.jour === "avenir";
       var opt = { rang: true, date: S.jour !== "libre", cocher: !!S.coche,
+        motif: S.jour === "sautees",
         retirer: jourDate && !S.coche && S.peutEcrire !== false };
+      if (S.jour === "sautees" && !S.coche) {
+        bloc.appendChild(el("p", "note-hors", "Une tournée ne se déroule pas toujours dans " +
+          "l'ordre : une cour sous l'eau attend le pompage du Service d'Hygiène, une emprise " +
+          "traitée à l'herbicide attend que le produit agisse. Ces écoles ont été dépassées — " +
+          "la contrainte est portée sur chaque ligne. Elles se reprogramment comme les " +
+          "autres : touchez « Programmer pour ce jour », puis cochez-les ici même."));
+      }
       var liste = el("div", "liste");
       choisi.forEach(function (e) { liste.appendChild(ligneEcole(e, opt)); });
       bloc.appendChild(liste);
@@ -1987,6 +2104,45 @@
     }
     inner.appendChild(bp);
 
+    /* Relevé de reconnaissance : ce que l'équipe a vu la veille. Il décide de
+       la place de l'école au planning, le diagnostic de septembre ne vaut plus
+       quand l'eau est partie. */
+    var br = el("div", "bloc");
+    var tr = el("div", "bloc-titre");
+    tr.appendChild(el("span", null, "Reconnaissance sur place"));
+    var rec = d.constat || {};
+    if (rec.le) tr.appendChild(el("span", "rang mono", dateMoyenne(rec.le.slice(0, 10))));
+    br.appendChild(tr);
+    br.appendChild(el("p", "note-hors", "Ce qu'une équipe constate la veille prime sur le " +
+      "diagnostic du 4 septembre. « Prête » lève la contrainte et renvoie l'école à la " +
+      "programmation."));
+    var gc = el("div", "constats");
+    CONSTATS.forEach(function (c) {
+      var b = el("button", "puce" + (rec.cle === c.cle ? " actif" : ""), c.court);
+      b.type = "button";
+      b.title = c.long;
+      if (S.peutEcrire === false) b.disabled = true;
+      b.onclick = function () {
+        var neuf = rec.cle === c.cle ? null : c.cle;
+        majSuivi(id, function (doc) {
+          if (!neuf) { delete doc.constat; return; }
+          doc.constat = { cle: neuf, le: new Date().toISOString(), par: S.moi || "" };
+        });
+        ouvrirFiche(id, true);
+      };
+      gc.appendChild(b);
+    });
+    br.appendChild(gc);
+    if (rec.cle) {
+      var cc = constatDe(rec.cle);
+      if (cc) {
+        var pr = el("p", "constat-dit", cc.long);
+        if (rec.par) pr.textContent += " — " + nomDe(rec.par);
+        br.appendChild(pr);
+      }
+    }
+    inner.appendChild(br);
+
     /* observation */
     var bo = el("div", "bloc");
     bo.appendChild(el("div", "bloc-titre")).appendChild(el("span", null, "Observation de terrain"));
@@ -2502,6 +2658,8 @@
     [["Aujourd'hui — " + dateMoyenne(aujourdhui()), seaux.aujourdhui.length, "aujourdhui", ""],
     ["Demain — " + dateMoyenne(demain()), seaux.demain.length, "demain", ""],
     ["Jours suivants", seaux.avenir.length, "avenir", ""],
+    ["Sautées", seaux.sautees.length, "sautees",
+     seaux.sautees.length ? "dépassées par les équipes, en attente d'une contrainte levée" : ""],
     ["Déjà passées", seaux.passees.length, "passees",
      passPas ? passSold + " soldées · " + passPas + " datées d'un jour passé, pas encore soldées"
              : "toutes soldées"],
@@ -2576,37 +2734,58 @@
     bc.appendChild(gc);
     v.appendChild(bc);
 
-    /* Le désherbage chimique n'apparaissait nulle part au Bilan, alors qu'il
-       explique pourquoi trois écoles sont datées sans être soldées. */
-    var prea = lot.filter(function (e) {
-      return e.taches.some(function (t) { return t.service === "Cadre de Vie"; }) &&
-             !bilanEcole(e).fini;
-    });
-    if (prea.length) {
+    /* Les écoles sautées, rangées par contrainte : c'est la question qu'on pose
+       toujours en réunion — pourquoi celles-là n'avancent pas. Les écoles où le
+       Cadre de Vie est passé y figurent nommément, leur herbicide étant posé. */
+    var atteintsB = rangsAtteints();
+    var saut = lot.filter(function (e) { return sautee(e, atteintsB); });
+    if (saut.length) {
+      var COUL = { eau: "--eau", chimique: "--sv-cadre", bloque: "--laterite",
+                   autre: "--trait-fort" };
+      var ORDRE_C = ["eau", "chimique", "bloque", "autre"];
+      var par = {};
+      saut.forEach(function (e) {
+        var c = contrainte(e);
+        (par[c.cle] = par[c.cle] || { long: c.long, court: c.court, l: [] }).l.push(e);
+      });
       var bp = el("div", "bloc");
       var tp = el("div", "bloc-titre");
-      tp.appendChild(el("span", null, "Traitées à l'herbicide, en attente de coupe"));
-      tp.appendChild(el("span", "mono", prea.length + ""));
+      tp.appendChild(el("span", null, "Écoles sautées"));
+      tp.appendChild(el("span", "mono", nbEtab(saut) + ""));
       bp.appendChild(tp);
-      bp.appendChild(el("p", "note-hors", "L'équipe dédiée du Cadre de Vie traite l'herbe à " +
-        "l'herbicide avant le passage des agents, pour que la coupe et le ratissage soient " +
-        "plus faciles. Ces écoles portent donc une date de passage sans être soldées."));
-      var lp = el("div", "alerte-liste");
-      prea.forEach(function (e) {
-        var w = el("div", "alerte");
-        var pt = el("span", "pt");
-        pt.style.background = "var(--sv-cadre)";
-        w.appendChild(pt);
-        var tx = el("div");
-        tx.appendChild(el("div", null, e.nom));
-        tx.appendChild(el("em", null, e.quartier + " · UC " + e.uc +
-          (datePassage(e.id) ? " · traitée le " + dateMoyenne(datePassage(e.id)) : "")));
-        w.appendChild(tx);
-        w.style.cursor = "pointer";
-        w.onclick = function () { ouvrirFiche(e.id); };
-        lp.appendChild(w);
+      bp.appendChild(el("p", "note-hors", "Les équipes les ont dépassées : une contrainte " +
+        "les retient. Elles restent au programme et se reprogramment dès qu'elle est levée."));
+      ORDRE_C.forEach(function (cle) {
+        var g = par[cle];
+        if (!g) return;
+        var ent = el("div", "saut-groupe");
+        var pastille = el("span", "saut-pastille");
+        pastille.style.background = "var(" + COUL[cle] + ")";
+        ent.appendChild(pastille);
+        var txt = el("div");
+        txt.appendChild(el("div", "saut-nom", g.court + " · " + nbEtab(g.l) +
+          (nbEtab(g.l) > 1 ? " écoles" : " école")));
+        txt.appendChild(el("div", "saut-long", g.long));
+        ent.appendChild(txt);
+        bp.appendChild(ent);
+        var lp = el("div", "alerte-liste");
+        g.l.sort(function (a, b) { return a.uc - b.uc || a.ordre - b.ordre; });
+        g.l.forEach(function (e) {
+          var w = el("div", "alerte");
+          var pt = el("span", "pt");
+          pt.style.background = "var(" + COUL[cle] + ")";
+          w.appendChild(pt);
+          var tx = el("div");
+          tx.appendChild(el("div", null, e.nom));
+          tx.appendChild(el("em", null, e.quartier + " · UC " + e.uc + " · n° " + e.ordre +
+            (datePassage(e.id) ? " · datée du " + dateMoyenne(datePassage(e.id)) : " · sans date")));
+          w.appendChild(tx);
+          w.style.cursor = "pointer";
+          w.onclick = function () { ouvrirFiche(e.id); };
+          lp.appendChild(w);
+        });
+        bp.appendChild(lp);
       });
-      bp.appendChild(lp);
       v.appendChild(bp);
     }
 

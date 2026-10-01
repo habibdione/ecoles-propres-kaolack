@@ -919,9 +919,14 @@
     g.appendChild(el("div", "jour-sous", CAMPAGNE.equipes + " équipes · démarrage le " +
       dateMoyenne(CAMPAGNE.debut) + " · J+" + joursEntre(CAMPAGNE.debut, auj)));
     ent.appendChild(g);
+    /* « 27/48 écoles restantes » se lit trop vite comme un avancement de 27 sur
+       48, alors que c'est l'inverse : le compteur dit ce qui est fait, et le
+       reste se lit dessous, en toutes lettres. */
+    var soldees = nbEtab(auProgramme) - restantes;
     var d = el("div", "jour-reste");
-    d.appendChild(el("span", "n mono", restantes + "/" + nbEtab(auProgramme)));
-    d.appendChild(el("span", "l", restantes > 1 ? "écoles restantes" : "école restante"));
+    d.appendChild(el("span", "n mono", soldees + "/" + nbEtab(auProgramme)));
+    d.appendChild(el("span", "l", "soldées · " + restantes + " restante" +
+      (restantes > 1 ? "s" : "")));
     ent.appendChild(d);
     v.appendChild(ent);
 
@@ -929,7 +934,7 @@
     var seaux = repartir(lot);
     /* tant que l'utilisateur n'a pas choisi d'onglet, ouvrir sur un jour qui a du contenu */
     if (S.jourAuto && !seaux[S.jour].length) {
-      var ordre = ["demain", "aujourdhui", "avenir", "libre", "passees"];
+      var ordre = ["demain", "aujourdhui", "avenir", "sautees", "libre", "passees"];
       for (var oi = 0; oi < ordre.length; oi++) {
         if (seaux[ordre[oi]].length) { S.jour = ordre[oi]; break; }
       }

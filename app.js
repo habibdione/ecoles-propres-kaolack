@@ -2445,6 +2445,16 @@
     sh.appendChild(el("span", "situation-jn",
       "J+" + joursEntre(CAMPAGNE.debut, aujourdhui())));
     sit.appendChild(sh);
+    /* La phrase que le présentateur peut lire telle quelle. Deux compteurs
+       voisins — « 21/48 » et « 27 » — se lisent trop vite comme « 27 sur 48 » :
+       la phrase tranche avant que la question ne se pose. */
+    var resume = el("p", "situation-resume");
+    resume.appendChild(el("b", null, nSold + " des " + nProg + " établissements du programme"));
+    resume.appendChild(document.createTextNode(
+      " sont soldés" +
+      (nProg ? " — " + Math.round(100 * nSold / nProg) + " % du programme" : "") +
+      ". " + (nProg - nSold) + " restent à traiter."));
+    sit.appendChild(resume);
     sit.appendChild(el("p", "situation-src",
       (S.db || DISTANT ? "Relevé dans la base partagée, mise à jour en continu par les agents."
                        : "Relevé local : les saisies des autres agents ne sont pas visibles.") +

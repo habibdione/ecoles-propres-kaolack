@@ -705,25 +705,40 @@ main{padding:var(--e4) var(--e4) 100px}
   color:var(--texte-2); padding:5px 0;
 }
 .graphe-rangee + .graphe-rangee{border-top:1px solid var(--trait)}
+.cal-precision{
+  font-style:normal; display:block; font-size:11px; line-height:1.4;
+  color:var(--texte-3); font-weight:500; margin-top:2px;
+}
 
 /* ═══ animations ═══
    Tout part d'un état visible : rien n'attend un défilement pour apparaître. */
 @media (prefers-reduced-motion:no-preference){
-  .graphe-ligne{
-    stroke-dasharray:1200; stroke-dashoffset:1200;
-    animation:trace 1.1s .1s cubic-bezier(.4,0,.2,1) forwards;
+  /* Les graphes du Bilan ne s'animent plus à chaque rendu : la vue se
+     redessine à chaque relecture de la base, toutes les trente secondes, et
+     une page projetée qui repart sans cesse devient illisible. La classe
+     « anime » n'est posée qu'à l'ouverture de l'onglet. */
+  .anime .graphe-aire{animation:fondu .9s .45s ease-out backwards}
+  .anime .graphe-bout{animation:pointe .45s 1.25s cubic-bezier(.34,1.56,.64,1) backwards}
+  .anime .graphe-barre{
+    transform-box:fill-box; transform-origin:center bottom;
+    animation:pousse .55s cubic-bezier(.34,1.3,.5,1) backwards;
+    animation-delay:calc(.45s + var(--i,0) * 70ms);
   }
-  .graphe-aire{animation:fondu .8s .35s ease-out backwards}
-  .graphe-bout{animation:pointe .4s .95s cubic-bezier(.34,1.56,.64,1) backwards}
-  .graphe-barre{transform-origin:center bottom; animation:pousse .5s cubic-bezier(.4,0,.2,1) backwards}
-  .graphe-barre:nth-child(3){animation-delay:.05s}
-  .graphe-barre:nth-child(4){animation-delay:.1s}
-  .graphe-barre:nth-child(5){animation-delay:.15s}
-  .graphe-barre:nth-child(6){animation-delay:.2s}
-  .graphe-barre:nth-child(n+7){animation-delay:.25s}
-  .kpi{animation:leve .4s cubic-bezier(.4,0,.2,1) backwards}
-  .kpi:nth-child(2){animation-delay:.06s}
-  .kpi:nth-child(3){animation-delay:.12s}
+  .anime > *{animation:leve .52s cubic-bezier(.22,.7,.3,1) backwards; animation-delay:calc(var(--i,0) * 75ms)}
+  .anime .kpi{animation:souleve .6s cubic-bezier(.22,.7,.3,1) backwards}
+  .anime .kpi:nth-child(1){animation-delay:.05s}
+  .anime .kpi:nth-child(2){animation-delay:.13s}
+  .anime .kpi:nth-child(3){animation-delay:.21s}
+  .anime .kpi:nth-child(4){animation-delay:.29s}
+  .anime .situation-resume{animation:leve .6s .18s cubic-bezier(.22,.7,.3,1) backwards}
+  .anime .couv{animation:leve .5s cubic-bezier(.22,.7,.3,1) backwards}
+  .anime .couv:nth-child(2){animation-delay:.07s}
+  .anime .couv:nth-child(3){animation-delay:.14s}
+  .anime .couv:nth-child(4){animation-delay:.21s}
+  .anime .alerte{animation:leve .42s cubic-bezier(.22,.7,.3,1) backwards}
+  .anime .alerte:nth-child(2){animation-delay:.05s}
+  .anime .alerte:nth-child(3){animation-delay:.1s}
+  .anime .alerte:nth-child(n+4){animation-delay:.15s}
   .liste .ligne{animation:leve .34s cubic-bezier(.4,0,.2,1) backwards}
   .liste .ligne:nth-child(1){animation-delay:.02s}
   .liste .ligne:nth-child(2){animation-delay:.05s}
@@ -741,6 +756,7 @@ main{padding:var(--e4) var(--e4) 100px}
 @keyframes pointe{from{transform:scale(0); transform-origin:center; opacity:0} to{transform:scale(1); opacity:1}}
 @keyframes pousse{from{transform:scaleY(0)} to{transform:scaleY(1)}}
 @keyframes leve{from{opacity:0; transform:translateY(7px)} to{opacity:1; transform:none}}
+@keyframes souleve{from{opacity:0; transform:translateY(18px) scale(.97)} to{opacity:1; transform:none}}
 @keyframes etire{from{width:0!important} }
 @keyframes respire{0%,100%{box-shadow:0 0 0 3px var(--vert-pale)} 50%{box-shadow:0 0 0 5px var(--vert-pale)}}
 

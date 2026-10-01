@@ -867,7 +867,12 @@
       aujourdhui: ["Intervention du jour", dateLongue(auj)],
       avenir: ["Jours suivants", "programmées au-delà de demain"],
       libre: ["À programmer", "au programme de nettoiement, sans date fixée"],
-      passees: ["Passées", "soldées, ou datées d'avant aujourd'hui"]
+      passees: ["Passées", (function () {
+        var f = seaux.passees.filter(function (e) { return bilanEcole(e).fini; }).length;
+        var r = seaux.passees.length - f;
+        return r ? f + " soldées, " + r + " datées d'un jour passé sans l'être encore"
+                 : "toutes soldées";
+      })()]
     };
     var bloc = el("div", "groupe-jour");
     var t = el("div", "groupe-titre" + (S.jour === "demain" ? " demain" : ""));
@@ -2492,16 +2497,24 @@
     tcal.appendChild(el("span", "rang mono", "J+" + joursEntre(CAMPAGNE.debut, aujourdhui())));
     cal.appendChild(tcal);
     var seaux = repartir(lot);
-    [["Aujourd'hui — " + dateMoyenne(aujourdhui()), seaux.aujourdhui.length, "aujourdhui"],
-    ["Demain — " + dateMoyenne(demain()), seaux.demain.length, "demain"],
-    ["Jours suivants", seaux.avenir.length, "avenir"],
-    ["Déjà passées", seaux.passees.length, "passees"],
-    ["Sans date de passage", seaux.libre.length, "libre"],
-    ["Relèvent d'autres services", lot.filter(horsProgramme).length, "libre"]].forEach(function (p) {
+    var passSold = seaux.passees.filter(function (e) { return bilanEcole(e).fini; }).length;
+    var passPas = seaux.passees.length - passSold;
+    [["Aujourd'hui — " + dateMoyenne(aujourdhui()), seaux.aujourdhui.length, "aujourdhui", ""],
+    ["Demain — " + dateMoyenne(demain()), seaux.demain.length, "demain", ""],
+    ["Jours suivants", seaux.avenir.length, "avenir", ""],
+    ["Déjà passées", seaux.passees.length, "passees",
+     passPas ? passSold + " soldées · " + passPas + " datées d'un jour passé, pas encore soldées"
+             : "toutes soldées"],
+    ["Sans date de passage", seaux.libre.length, "libre", "au programme, à dater"],
+    ["Relèvent d'autres services", lot.filter(horsProgramme).length, "libre",
+     "relevées, hors programme de nettoiement"]].forEach(function (p) {
       var w = el("div", "barre-ligne");
       w.style.marginBottom = "9px";
       var n = el("div", "barre-nom");
-      n.appendChild(el("span", null, p[0]));
+      var hb = el("div");
+      hb.appendChild(el("span", null, p[0]));
+      if (p[3]) hb.appendChild(el("em", "cal-precision", p[3]));
+      n.appendChild(hb);
       w.appendChild(n);
       w.appendChild(el("div", "barre-val mono", p[1] + " école" + (p[1] > 1 ? "s" : "")));
       w.style.cursor = "pointer";
@@ -2763,6 +2776,8 @@
       v.appendChild(loc);
     }
 
+    if (!bilanJoue) { bilanJoue = true; animerBilan(v); }
+
     var note = el("p", "note-pied");
     note.innerHTML = "Périmètre arrêté par le CSIG le 21/09 : dans les établissements scolaires, la SONAGED intervient pour " +
       "l'élagage, le désherbage et l'enlèvement des déchets ; le curage revient au Service d'Hygiène ; gravats, branches " +
@@ -2835,7 +2850,81 @@
     appliquerVue(vue);
   }
 
+  /* ---------------- mise en scène du Bilan ----------------
+     Le Bilan se projette devant un comité : à l'ouverture de l'onglet, les
+     chiffres montent, les barres se remplissent et la courbe s'écrit. Rien ne
+     rejoue aux relectures de la base, toutes les trente secondes — une page
+     qui s'anime sans cesse devient illisible, et fatigue une salle. */
+  var bilanJoue = false;
+
+  function sobre() {
+    try { return matchMedia("(prefers-reduced-motion: reduce)").matches; }
+    catch (e) { return false; }
+  }
+
+  /* Un nombre qui monte se lit mieux qu'un nombre qui apparaît : on retient le
+     suffixe (« /48 », « % ») et on n'anime que la part chiffrée de tête. */
+  function compter(n, retard) {
+    var m = String(n.textContent).match(/^(\d+)([\s\S]*)$/);
+    if (!m || +m[1] <= 0) return;
+    var cible = +m[1], suite = m[2], debut = 0;
+    n.textContent = "0" + suite;
+    function pas(t) {
+      if (!debut) debut = t;
+      var u = (t - debut - retard) / 850;
+      if (u < 0) { requestAnimationFrame(pas); return; }
+      u = Math.min(1, u);
+      n.textContent = Math.round(cible * (1 - Math.pow(1 - u, 3))) + suite;
+      if (u < 1) requestAnimationFrame(pas);
+    }
+    requestAnimationFrame(pas);
+  }
+
+  function animerBilan(v) {
+    if (sobre()) return;
+    v.classList.add("anime");
+    Array.prototype.forEach.call(v.children, function (c, i) {
+      c.style.setProperty("--i", Math.min(i, 10));
+    });
+    Array.prototype.forEach.call(v.querySelectorAll(".kpi .n"), function (n, i) {
+      compter(n, 120 + i * 90);
+    });
+    Array.prototype.forEach.call(v.querySelectorAll(".couv .n"), function (n, i) {
+      compter(n, 420 + i * 70);
+    });
+    /* les barres repartent de zéro, puis s'étirent jusqu'à leur mesure */
+    var barres = v.querySelectorAll(".barre i");
+    Array.prototype.forEach.call(barres, function (b, i) {
+      var l = b.style.width;
+      b.style.transition = "none";
+      b.style.width = "0%";
+      b.setAttribute("data-l", l);
+      void b.offsetWidth;
+      b.style.transition = "width .85s cubic-bezier(.22,.7,.3,1) " + (260 + i * 45) + "ms";
+    });
+    requestAnimationFrame(function () {
+      Array.prototype.forEach.call(barres, function (b) {
+        b.style.width = b.getAttribute("data-l") || "0%";
+      });
+    });
+    /* la courbe s'écrit à sa longueur réelle, non à une longueur devinée */
+    var l = v.querySelector(".graphe-ligne");
+    if (l && l.getTotalLength) {
+      var d = l.getTotalLength();
+      l.style.transition = "none";
+      l.style.strokeDasharray = d;
+      l.style.strokeDashoffset = d;
+      void l.getBoundingClientRect();
+      l.style.transition = "stroke-dashoffset 1.25s cubic-bezier(.22,.7,.3,1) .3s";
+      l.style.strokeDashoffset = "0";
+    }
+    Array.prototype.forEach.call(v.querySelectorAll(".graphe-barre"), function (r, i) {
+      r.style.setProperty("--i", i);
+    });
+  }
+
   function appliquerVue(vue) {
+    if (vue !== "Bilan") bilanJoue = false;
     S.vue = vue;
     $("#vuePlanning").hidden = vue !== "Planning";
     $("#vueEcoles").hidden = vue !== "Ecoles";

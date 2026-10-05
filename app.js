@@ -2514,7 +2514,12 @@
 
   function blocEvolution() {
     var serie = serieAvancement();
-    var total = ECOLES.reduce(function (n, e) { return n + e.taches.length; }, 0);
+    /* Même dénominateur que le compteur d'interventions : le programme, pas le
+       catalogue. Deux totaux différents sur un même écran se lisent comme une
+       erreur, et l'un des deux en serait une. */
+    var total = ECOLES.reduce(function (n, e) {
+      return horsProgramme(e) ? n : n + e.taches.length;
+    }, 0);
     var fait = serie.length ? serie[serie.length - 1].cumul : 0;
 
     var b = el("div", "bloc bloc-evolution");
@@ -2630,6 +2635,14 @@
     var atteintsC = rangsAtteints();
     var chantier = auProg.filter(function (e) { return enChantier(e, atteintsC); });
     var nChant = nbEtab(chantier);
+    /* Le taux d'interventions se mesure sur le programme, comme les compteurs
+       d'établissements : les six établissements hors programme portent 24
+       interventions qui reviennent à d'autres services et que la SONAGED ne
+       pointera jamais. Les compter au dénominateur donnait 46 % au lieu de 53 %
+       — le « taux faussement bas » que l'en-tête de cette fonction s'interdit.
+       `a` reste sur le catalogue pour les points bloqués, que le bloc d'alertes
+       plus bas liste de la même façon. */
+    var aProg = agreger(auProg);
 
     /* de quand parle-t-on, et d'après quoi */
     var sit = el("div", "situation");
@@ -2677,8 +2690,8 @@
     [(nSold + nChant) + "/" + nProg, "Établissements engagés", "",
      nChant ? pourcent(nSold + nChant, nProg) + " % · dont " + nChant + " en cours"
             : "tous soldés", "vif"],
-    [(a.total ? pourcent(a.faits, a.total) : 0) + " %", "Interventions réalisées", "",
-     a.total ? a.faits + " sur " + a.total : "", ""],
+    [(aProg.total ? pourcent(aProg.faits, aProg.total) : 0) + " %", "Interventions réalisées", "",
+     aProg.total ? aProg.faits + " sur " + aProg.total + " au programme" : "", ""],
     [String(nProg - nSold), "Restent à traiter", "",
      nChant ? (nProg - nSold - nChant) + " à engager" : "", ""],
     [String(a.bloques), "Points bloqués", a.bloques ? "laterite" : "", "", ""]].forEach(function (p) {
@@ -2809,17 +2822,17 @@
     v.appendChild(b2);
 
     /* Ce que le travail a couvert : de quoi répondre sans chercher. */
-    var quartiers = {}, photos = 0, pointees = 0;
+    var quartiers = {}, photos = 0;
     soldees.forEach(function (e) { quartiers[e.quartier] = 1; });
-    lot.forEach(function (e) {
-      photos += (suiviDe(e.id).photos || []).length;
-      e.taches.forEach(function (t) { if (etatTache(e.id, t.id) === "fait") pointees++; });
-    });
+    /* Les photos se comptent sur tout ce qui est relevé — un cliché reste un
+       cliché —, les interventions sur le seul programme, comme en tête. */
+    lot.forEach(function (e) { photos += (suiviDe(e.id).photos || []).length; });
+    var pointees = aProg.faits;
     var bc = el("div", "bloc");
     bc.appendChild(el("div", "bloc-titre")).appendChild(el("span", null, "Couverture"));
     var gc = el("div", "couverture");
     [[String(Object.keys(quartiers).length), "quartiers touchés"],
-    [pointees + " / " + a.total, "interventions pointées"],
+    [pointees + " / " + aProg.total, "interventions pointées"],
     [String(photos), "photos versées du terrain"],
     [String(Object.keys(EXEC).length), "fiches d'exécution"]].forEach(function (x) {
       var c = el("div", "couv");

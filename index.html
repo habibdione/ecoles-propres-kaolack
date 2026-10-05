@@ -617,6 +617,8 @@ main{padding:var(--e4) var(--e4) 100px}
   margin:calc(-1 * var(--e2)) 0 var(--e4);
 }
 .kpis{display:grid; grid-template-columns:repeat(2,1fr); gap:var(--e2); margin-bottom:var(--e3)}
+/* cinq compteurs sur deux colonnes : le dernier, seul sur sa ligne, l'occupe entiere */
+.kpis .kpi:last-child:nth-child(odd){grid-column:1/-1}
 .kpi-vert .n{color:var(--vert)}
 .kpi-laterite .n{color:var(--laterite)}
 .couverture{display:grid; grid-template-columns:repeat(2,1fr); gap:var(--e3) var(--e2)}
@@ -773,6 +775,7 @@ main{padding:var(--e4) var(--e4) 100px}
   .anime .kpi:nth-child(2){animation-delay:.13s}
   .anime .kpi:nth-child(3){animation-delay:.21s}
   .anime .kpi:nth-child(4){animation-delay:.29s}
+  .anime .kpi:nth-child(5){animation-delay:.37s}
   .anime .situation-resume{animation:leve .6s .18s cubic-bezier(.22,.7,.3,1) backwards}
   .anime .couv{animation:leve .5s cubic-bezier(.22,.7,.3,1) backwards}
   .anime .couv:nth-child(2){animation-delay:.07s}
@@ -884,7 +887,8 @@ main{padding:var(--e4) var(--e4) 100px}
    cessent de s'étirer d'un bord à l'autre. Tout est sous seuil : la vue téléphone
    ne bouge pas d'un pixel. */
 @media (min-width:680px){
-  .kpis{grid-template-columns:repeat(4,1fr)}
+  .kpis{grid-template-columns:repeat(5,1fr)}
+  .kpis .kpi:last-child:nth-child(odd){grid-column:auto}
   .couverture{grid-template-columns:repeat(4,1fr)}
   #app{max-width:680px}
   .nav-inner{max-width:680px}

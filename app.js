@@ -2644,7 +2644,8 @@
       (nProg ? " — " + Math.round(100 * nSold / nProg) + " % du programme" : "") +
       ". " + (nProg - nSold) + " restent à traiter" +
       (nChant ? ", dont " + nChant + (nChant > 1 ? " déjà engagés" : " déjà engagé") +
-                " — en cours ou au programme du jour." : ".")));
+                " : " + (nSold + nChant) + " des " + nProg +
+                " sont soldés ou en cours." : ".")));
     sit.appendChild(resume);
     sit.appendChild(el("p", "situation-src",
       (S.db || DISTANT ? "Relevé dans la base partagée, mise à jour en continu par les agents."
@@ -2654,10 +2655,17 @@
     v.appendChild(sit);
 
     var k = el("div", "kpis");
+    /* « Soldés » reste strict : tout pointé. « Engagés » y ajoute ce qui est
+       commencé — c'est le chiffre qui dit où en est le travail, celui qu'on
+       cherche quand on demande ce qui se passe cette semaine. Les deux voisinent
+       plutôt que de se remplacer : un comité a besoin de l'un pour mesurer, de
+       l'autre pour suivre. */
     [[nSold + "/" + nProg, "Établissements soldés", "vert", ""],
+    [(nSold + nChant) + "/" + nProg, "Établissements engagés", "",
+     nChant ? "dont " + nChant + " en cours" : "tous soldés"],
     [(a.total ? Math.round(100 * a.faits / a.total) : 0) + " %", "Interventions réalisées", "", ""],
     [String(nProg - nSold), "Restent à traiter", "",
-     nChant ? "dont " + nChant + " engagé" + (nChant > 1 ? "s" : "") : ""],
+     nChant ? (nProg - nSold - nChant) + " à engager" : ""],
     [String(a.bloques), "Points bloqués", a.bloques ? "laterite" : "", ""]].forEach(function (p) {
       var c = el("div", "kpi" + (p[2] ? " kpi-" + p[2] : ""));
       c.appendChild(el("div", "n mono", p[0]));

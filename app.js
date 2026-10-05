@@ -260,6 +260,21 @@
      que sa position n'est pas prise. */
   function situee(e) { return typeof e.lat === "number" && typeof e.lon === "number"; }
 
+  /* Un établissement engagé n'est pas soldé, mais il n'est pas pour autant en
+     attente : une intervention au moins y est pointée, ou il est au programme
+     du jour. Le ranger avec les écoles intouchées fait lire « 28 restent à
+     traiter » comme « 28 où rien ne bouge », alors que les équipes y sont —
+     c'est la première question posée en réunion.
+     Les écoles dépassées par les équipes n'en font pas partie : un jour passé
+     sans que le travail soit fait, c'est une école sautée, et elle a son bloc. */
+  function enChantier(e, atteints) {
+    if (horsProgramme(e)) return false;
+    var b = bilanEcole(e);
+    if (b.fini) return false;
+    if (sautee(e, atteints || rangsAtteints())) return false;
+    return b.demarre || datePassage(e.id) === aujourdhui();
+  }
+
   /* Le programme compte 49 établissements pour 47 fiches : Cheikh Ahmed Tidiane
      Niass 1 et 2, comme Tanor Dieng 1 et 2, partagent chacun un même site.
      Neuf écoles y ont été versées après le planning initial et portent la mention
@@ -2604,6 +2619,12 @@
     var auProg = lot.filter(function (e) { return !horsProgramme(e); });
     var soldees = auProg.filter(function (e) { return bilanEcole(e).fini; });
     var nSold = nbEtab(soldees), nProg = nbEtab(auProg);
+    /* Ce qui est engagé à l'instant, pris sur un seul relevé des rangs atteints :
+       les écoles entamées et celles du jour. Le reste à traiter les contient ;
+       les compter à part dit lesquelles avancent déjà. */
+    var atteintsC = rangsAtteints();
+    var chantier = auProg.filter(function (e) { return enChantier(e, atteintsC); });
+    var nChant = nbEtab(chantier);
 
     /* de quand parle-t-on, et d'après quoi */
     var sit = el("div", "situation");
@@ -2621,7 +2642,9 @@
     resume.appendChild(document.createTextNode(
       " sont soldés" +
       (nProg ? " — " + Math.round(100 * nSold / nProg) + " % du programme" : "") +
-      ". " + (nProg - nSold) + " restent à traiter."));
+      ". " + (nProg - nSold) + " restent à traiter" +
+      (nChant ? ", dont " + nChant + (nChant > 1 ? " déjà engagés" : " déjà engagé") +
+                " — en cours ou au programme du jour." : ".")));
     sit.appendChild(resume);
     sit.appendChild(el("p", "situation-src",
       (S.db || DISTANT ? "Relevé dans la base partagée, mise à jour en continu par les agents."
@@ -2631,13 +2654,15 @@
     v.appendChild(sit);
 
     var k = el("div", "kpis");
-    [[nSold + "/" + nProg, "Établissements soldés", "vert"],
-    [(a.total ? Math.round(100 * a.faits / a.total) : 0) + " %", "Interventions réalisées", ""],
-    [String(nProg - nSold), "Restent à traiter", ""],
-    [String(a.bloques), "Points bloqués", a.bloques ? "laterite" : ""]].forEach(function (p) {
+    [[nSold + "/" + nProg, "Établissements soldés", "vert", ""],
+    [(a.total ? Math.round(100 * a.faits / a.total) : 0) + " %", "Interventions réalisées", "", ""],
+    [String(nProg - nSold), "Restent à traiter", "",
+     nChant ? "dont " + nChant + " engagé" + (nChant > 1 ? "s" : "") : ""],
+    [String(a.bloques), "Points bloqués", a.bloques ? "laterite" : "", ""]].forEach(function (p) {
       var c = el("div", "kpi" + (p[2] ? " kpi-" + p[2] : ""));
       c.appendChild(el("div", "n mono", p[0]));
       c.appendChild(el("div", "l", p[1]));
+      if (p[3]) c.appendChild(el("div", "s", p[3]));
       k.appendChild(c);
     });
     v.appendChild(k);
@@ -2689,6 +2714,47 @@
     cal.appendChild(el("p", "note-pied", "Démarrage le " + dateLongue(CAMPAGNE.debut).toLowerCase() +
       ". Aucune date butoir n'est retenue : les deux documents de référence divergent."));
     v.appendChild(cal);
+
+    /* Le Calendrier dit combien ; ce bloc dit lesquelles, et où elles en sont.
+       Deux situations s'y rejoignent : l'école déjà entamée, dont les équipes
+       n'ont pas fini de pointer, et celle inscrite au programme du jour, qui
+       peut n'avoir encore aucune intervention cochée. Les deux sont du travail
+       engagé, et c'est ce qu'on vient chercher au Bilan. */
+    if (chantier.length) {
+      var bch = el("div", "bloc");
+      var tch = el("div", "bloc-titre");
+      tch.appendChild(el("span", null, "En cours ou programmées aujourd'hui"));
+      tch.appendChild(el("span", "mono", nChant + ""));
+      bch.appendChild(tch);
+      bch.appendChild(el("p", "note-hors", "Les équipes y sont, ou y vont aujourd'hui. " +
+        "Elles comptent encore dans le reste à traiter — rien n'est soldé tant que tout " +
+        "n'est pas pointé —, mais le travail y est commencé."));
+      var lch = el("div", "alerte-liste");
+      chantier.slice().sort(function (x, y) { return x.uc - y.uc || x.ordre - y.ordre; })
+        .forEach(function (e) {
+          var bl = bilanEcole(e);
+          var dt = datePassage(e.id);
+          var duJour = dt === aujourdhui();
+          var w = el("div", "alerte");
+          var pt = el("span", "pt");
+          pt.style.background = "var(--ambre)";
+          w.appendChild(pt);
+          var tx = el("div");
+          tx.appendChild(el("div", null, e.nom));
+          tx.appendChild(el("em", null, e.quartier + " · UC " + e.uc + " · n° " + e.ordre + " · " +
+            (bl.total ? "interventions " + bl.faits + "/" + bl.total
+                      : "aucune intervention à pointer, se solde sur les clichés") +
+            (duJour ? " · au programme du jour"
+                    : dt ? " · entamée, reprise le " + dateMoyenne(dt)
+                         : " · entamée, sans date de reprise")));
+          w.appendChild(tx);
+          w.style.cursor = "pointer";
+          w.onclick = function () { ouvrirFiche(e.id); };
+          lch.appendChild(w);
+        });
+      bch.appendChild(lch);
+      v.appendChild(bch);
+    }
 
     var b1 = el("div", "bloc");
     b1.appendChild(el("div", "bloc-titre")).appendChild(el("span", null, "Avancement par unité communale"));
@@ -2744,8 +2810,7 @@
     /* Les écoles sautées, rangées par contrainte : c'est la question qu'on pose
        toujours en réunion — pourquoi celles-là n'avancent pas. Les écoles où le
        Cadre de Vie est passé y figurent nommément, leur herbicide étant posé. */
-    var atteintsB = rangsAtteints();
-    var saut = lot.filter(function (e) { return sautee(e, atteintsB); });
+    var saut = lot.filter(function (e) { return sautee(e, atteintsC); });
     if (saut.length) {
       var COUL = { eau: "--eau", chimique: "--sv-cadre", bloque: "--laterite",
                    autre: "--trait-fort" };

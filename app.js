@@ -260,12 +260,14 @@
      que sa position n'est pas prise. */
   function situee(e) { return typeof e.lat === "number" && typeof e.lon === "number"; }
 
-  /* Le programme compte 47 établissements pour 45 fiches : Cheikh Ahmed Tidiane
+  /* Le programme compte 49 établissements pour 47 fiches : Cheikh Ahmed Tidiane
      Niass 1 et 2, comme Tanor Dieng 1 et 2, partagent chacun un même site.
-     Sept écoles y ont été versées après le planning initial et portent la mention
+     Neuf écoles y ont été versées après le planning initial et portent la mention
      « ajoutée » : Ndangane 3 et 4, El Hadji Serigne Diaw et Parcelle 1, traitées
      les 28 et 29 septembre ; Moussa Sow et sa case des tout-petits à Kassaville,
-     El Hadji Seck Faye à Kasnack, relevées au GPS le 30 septembre. */
+     El Hadji Seck Faye à Kasnack, relevées au GPS le 30 septembre ; la case des
+     tout-petits de Ndorong, versée le 1er octobre, et celle de Touba Ndorong,
+     versée le 5 octobre — toutes deux en attente de leur point GPS. */
   function nbEtab(liste) {
     return liste.reduce(function (n, e) { return n + e.codes.length; }, 0);
   }

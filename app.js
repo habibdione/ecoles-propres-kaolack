@@ -114,6 +114,10 @@
     var t = suiviDe(id).taches || {};
     return (t[tid] && t[tid].e) || "attente";
   }
+  /* Un taux arrondi à l'entier, comme le lisent les documents de la Commune.
+     Dénominateur nul : 0 plutôt qu'une division impossible. */
+  function pourcent(n, d) { return d ? Math.round(100 * n / d) : 0; }
+
   function bilanEcole(e) {
     var faits = 0, entames = 0, bloques = 0;
     for (var i = 0; i < e.taches.length; i++) {
@@ -2639,13 +2643,17 @@
        la phrase tranche avant que la question ne se pose. */
     var resume = el("p", "situation-resume");
     resume.appendChild(el("b", null, nSold + " des " + nProg + " établissements du programme"));
-    resume.appendChild(document.createTextNode(
-      " sont soldés" +
-      (nProg ? " — " + Math.round(100 * nSold / nProg) + " % du programme" : "") +
-      ". " + (nProg - nSold) + " restent à traiter" +
-      (nChant ? ", dont " + nChant + (nChant > 1 ? " déjà engagés" : " déjà engagé") +
-                " : " + (nSold + nChant) + " des " + nProg +
-                " sont soldés ou en cours." : ".")));
+    var phrase = " sont soldés";
+    if (nProg) phrase += " — " + pourcent(nSold, nProg) + " %";
+    phrase += ". " + (nProg - nSold) + " restent à traiter";
+    if (nChant) {
+      phrase += ", dont " + nChant + (nChant > 1 ? " déjà engagés" : " déjà engagé") +
+                " : " + (nSold + nChant) + " des " + nProg + ", soit " +
+                pourcent(nSold + nChant, nProg) + " %, sont soldés ou en cours.";
+    } else {
+      phrase += nProg ? " du programme." : ".";
+    }
+    resume.appendChild(document.createTextNode(phrase));
     sit.appendChild(resume);
     sit.appendChild(el("p", "situation-src",
       (S.db || DISTANT ? "Relevé dans la base partagée, mise à jour en continu par les agents."
@@ -2657,20 +2665,26 @@
     var k = el("div", "kpis");
     /* « Soldés » reste strict : tout pointé. « Engagés » y ajoute ce qui est
        commencé — c'est le chiffre qui dit où en est le travail, celui qu'on
-       cherche quand on demande ce qui se passe cette semaine. Les deux voisinent
-       plutôt que de se remplacer : un comité a besoin de l'un pour mesurer, de
-       l'autre pour suivre. */
-    [[nSold + "/" + nProg, "Établissements soldés", "vert", ""],
+       cherche quand on demande ce qui se passe cette semaine. Un comité a besoin
+       de l'un pour mesurer, de l'autre pour suivre : les deux voisinent.
+       Chacun porte alors son propre taux. Sans cela, le « 55 % » lu sous le
+       premier semble qualifier les deux, et l'avancement réel du programme —
+       63 % d'engagé — ne se lit nulle part. Le troisième compteur, lui, mesure
+       les interventions et non les établissements : son taux est son chiffre. */
+    [[nSold + "/" + nProg, "Établissements soldés", "vert",
+     nProg ? pourcent(nSold, nProg) + " % du programme" : "", ""],
     [(nSold + nChant) + "/" + nProg, "Établissements engagés", "",
-     nChant ? "dont " + nChant + " en cours" : "tous soldés"],
-    [(a.total ? Math.round(100 * a.faits / a.total) : 0) + " %", "Interventions réalisées", "", ""],
+     nChant ? pourcent(nSold + nChant, nProg) + " % · dont " + nChant + " en cours"
+            : "tous soldés", "vif"],
+    [(a.total ? pourcent(a.faits, a.total) : 0) + " %", "Interventions réalisées", "",
+     a.total ? a.faits + " sur " + a.total : "", ""],
     [String(nProg - nSold), "Restent à traiter", "",
-     nChant ? (nProg - nSold - nChant) + " à engager" : ""],
-    [String(a.bloques), "Points bloqués", a.bloques ? "laterite" : "", ""]].forEach(function (p) {
+     nChant ? (nProg - nSold - nChant) + " à engager" : "", ""],
+    [String(a.bloques), "Points bloqués", a.bloques ? "laterite" : "", "", ""]].forEach(function (p) {
       var c = el("div", "kpi" + (p[2] ? " kpi-" + p[2] : ""));
       c.appendChild(el("div", "n mono", p[0]));
       c.appendChild(el("div", "l", p[1]));
-      if (p[3]) c.appendChild(el("div", "s", p[3]));
+      if (p[3]) c.appendChild(el("div", "s" + (p[4] ? " " + p[4] : ""), p[3]));
       k.appendChild(c);
     });
     v.appendChild(k);

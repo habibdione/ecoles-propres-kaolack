@@ -58,6 +58,7 @@
     uc: 0,            // 0 = toutes
     etat: "tous",     // tous | reste | encours | fini | p1
     service: "",      // "" = tous les services pilotes
+    zone: "",         // quartier retenu d'un clic dans le tableau de bord
     q: "",
     suivi: {},        // id école -> { taches:{}, obs, photos:[], date, maj }
     attente: {},      // saisies pas encore confirmées par le serveur
@@ -601,7 +602,9 @@
       var n = ECOLES.filter(function (e) { return !p[0] || e.uc === p[0]; }).length;
       var b = el("button", "puce", p[1] + " · " + n);
       b.setAttribute("aria-pressed", String(S.uc === p[0]));
-      b.onclick = function () { S.uc = p[0]; S.selection = null; S.coche = null; rafraichir(); };
+      /* le quartier retenu appartenait peut-être à une autre unité : le garder
+         viderait le tableau de bord sans qu'on comprenne pourquoi */
+      b.onclick = function () { S.uc = p[0]; S.selection = null; S.coche = null; S.zone = ""; rafraichir(); };
       uc.appendChild(b);
     });
 
@@ -2396,11 +2399,15 @@
      Les dates viennent de l'horodatage de chaque intervention passée à « fait ».
      Deux mesures, deux graphiques : jamais deux échelles sur un même axe. */
 
-  function serieAvancement() {
+  /* Le lot et le service sont facultatifs : le Bilan mesure le programme
+     entier, le tableau de bord la part qu'on y a filtrée. Une seule fonction
+     pour les deux écrans, qui comptent donc de la même façon. */
+  function serieAvancement(lot, service) {
     var parJour = {};
-    ECOLES.forEach(function (e) {
+    (lot || ECOLES).forEach(function (e) {
       var t = suiviDe(e.id).taches || {};
       e.taches.forEach(function (x) {
+        if (service && x.service !== service) return;
         var st = t[x.id];
         if (!st || st.e !== "fait" || !st.le) return;
         var j = String(st.le).slice(0, 10);
@@ -2478,7 +2485,7 @@
       g.push('<rect class="graphe-cible" data-i="' + i + '" x="' + (px(i) - l / 2).toFixed(1) + '" y="0" width="' +
         l.toFixed(1) + '" height="' + (H - mb) + '" fill="transparent"/>');
     });
-    g.push('<line id="graphe-croix" x1="0" y1="' + mt + '" x2="0" y2="' + (H - mb) +
+    g.push('<line class="graphe-croix" x1="0" y1="' + mt + '" x2="0" y2="' + (H - mb) +
       '" stroke="var(--texte-3)" stroke-width="1" stroke-dasharray="2 3" opacity="0"/>');
     g.push("</svg>");
     return { html: g.join(""), px: px, py: py };
@@ -2512,13 +2519,15 @@
     return g.join("");
   }
 
-  function blocEvolution() {
-    var serie = serieAvancement();
+  function blocEvolution(lot, service) {
+    var serie = serieAvancement(lot, service);
     /* Même dénominateur que le compteur d'interventions : le programme, pas le
        catalogue. Deux totaux différents sur un même écran se lisent comme une
        erreur, et l'un des deux en serait une. */
-    var total = ECOLES.reduce(function (n, e) {
-      return horsProgramme(e) ? n : n + e.taches.length;
+    var total = (lot || ECOLES).reduce(function (n, e) {
+      if (horsProgramme(e)) return n;
+      return n + (service ? e.taches.filter(function (t) { return t.service === service; }).length
+                          : e.taches.length);
     }, 0);
     var fait = serie.length ? serie[serie.length - 1].cumul : 0;
 
@@ -2568,7 +2577,7 @@
 
     /* survol : croix + valeur du jour */
     var svg = c1.querySelector("svg");
-    var croix = svg.querySelector("#graphe-croix");
+    var croix = svg.querySelector(".graphe-croix");
     var jourTxt = info.querySelector(".graphe-jour");
     var valTxt = info.querySelector(".graphe-val");
     function montrer(i) {
@@ -3119,6 +3128,530 @@
     }
   }
 
+  /* ---------------- tableau de bord ----------------
+     Le Bilan dit où en est la campagne : il se lit de haut en bas, une fois par
+     jour, et sert de compte rendu. Celui-ci sert à chercher. Ce sont les mêmes
+     relevés, croisés autrement, et chaque marque filtre toutes les autres : on y
+     repère un quartier qui traîne ou un service qui n'a pas démarré, puis on
+     ouvre la fiche. Comme au Bilan, tout porte sur le programme et jamais sur le
+     catalogue — sinon les deux écrans afficheraient deux taux différents. */
+
+  /* Les états gardent ici les couleurs qu'ils ont déjà sur la carte, dans les
+     barres du Bilan et dans les fiches. Un état qui change de teinte d'un écran
+     à l'autre s'apprend deux fois. */
+  var TEINTE_ETAT = {
+    fait: "var(--vert-vif)", encours: "var(--ambre)",
+    bloque: "var(--laterite)", attente: "var(--trait-fort)"
+  };
+  var NOM_ETAT = {
+    fait: "Réalisées", encours: "En cours", bloque: "Bloquées", attente: "À faire"
+  };
+
+  /* Une intervention, c'est une tâche d'une école : c'est le grain de tous les
+     compteurs d'ici. Compter des établissements ne permettrait pas de croiser
+     quartier et service — une école qui en mobilise deux serait comptée deux
+     fois, et les colonnes cesseraient de s'additionner. */
+  function interventionsDe(lot, service) {
+    var out = [];
+    lot.forEach(function (e) {
+      e.taches.forEach(function (t) {
+        if (service && t.service !== service) return;
+        out.push({ ecole: e, tache: t, etat: etatTache(e.id, t.id) });
+      });
+    });
+    return out;
+  }
+
+  function compterEtats(liste) {
+    var a = { total: liste.length, faits: 0, encours: 0, bloques: 0 };
+    liste.forEach(function (x) {
+      if (x.etat === "fait") a.faits++;
+      else if (x.etat === "encours") a.encours++;
+      else if (x.etat === "bloque") a.bloques++;
+    });
+    a.reste = a.total - a.faits - a.encours - a.bloques;
+    return a;
+  }
+
+  /* Deux écoles du programme n'ont aucune intervention à pointer : elles se
+     soldent sur les clichés « après ». Sans ce cas particulier elles pèseraient
+     0 % pour toujours et tireraient leur quartier vers le bas. */
+  function tauxEcole(e) {
+    var b = bilanEcole(e);
+    if (!b.total) return b.fini ? 100 : 0;
+    return pourcent(b.faits, b.total);
+  }
+  /* La carte ne distingue pas le bloqué de l'entamé — un point rouge y voudrait
+     dire « priorité 1 ». Ici un blocage est justement ce qu'on cherche. */
+  function etatEcole(e) {
+    var b = bilanEcole(e);
+    if (b.fini) return "fait";
+    if (b.bloques) return "bloque";
+    if (b.demarre) return "encours";
+    return "attente";
+  }
+
+  /* Le lot du tableau de bord : le programme, réduit par les filtres actifs.
+     L'unité communale vient du bandeau, le quartier et le service d'un clic
+     dans les graphiques. */
+  function lotAnalyse() {
+    return ECOLES.filter(function (e) {
+      if (horsProgramme(e)) return false;
+      if (S.uc && e.uc !== S.uc) return false;
+      if (S.zone && e.quartier !== S.zone) return false;
+      if (S.service && !e.taches.some(function (t) { return t.service === S.service; })) return false;
+      return true;
+    });
+  }
+
+  function legendeEtats(cles) {
+    var l = el("div", "ana-legende");
+    cles.forEach(function (k) {
+      var s = el("span");
+      var b = el("b");
+      b.style.background = TEINTE_ETAT[k];
+      s.appendChild(b);
+      s.appendChild(document.createTextNode(NOM_ETAT[k]));
+      l.appendChild(s);
+    });
+    return l;
+  }
+
+  /* Le repli « Voir les valeurs » du Bilan, rendu réutilisable : un graphique
+     sans sa table n'est lisible ni au lecteur d'écran, ni recopiable dans un
+     rapport. */
+  function tableValeurs(rangees) {
+    var voir = el("button", "graphe-voir", "Voir les valeurs");
+    voir.type = "button";
+    var tab = el("div", "graphe-table");
+    tab.hidden = true;
+    rangees.forEach(function (r) {
+      var l = el("div", "graphe-rangee");
+      l.appendChild(el("span", null, r[0]));
+      l.appendChild(el("span", "mono", r[1]));
+      tab.appendChild(l);
+    });
+    voir.onclick = function () {
+      tab.hidden = !tab.hidden;
+      voir.textContent = tab.hidden ? "Voir les valeurs" : "Masquer les valeurs";
+    };
+    return [voir, tab];
+  }
+
+  /* ---- filtres ----
+     Une seule rangée, au-dessus des graphiques : le service, puis le quartier
+     s'il a été choisi d'un clic. L'unité communale reste au bandeau, où elle
+     vaut pour toute l'application. */
+  function filtresAnalyse() {
+    var f = el("div", "filtres ana-filtres");
+    var tous = el("button", "puce", "Tous les services");
+    tous.type = "button";
+    tous.setAttribute("aria-pressed", String(!S.service));
+    tous.onclick = function () { S.service = ""; rafraichir(); };
+    f.appendChild(tous);
+    SERVICES.forEach(function (x) {
+      var n = ECOLES.reduce(function (a, e) {
+        return horsProgramme(e) ? a : a + e.taches.filter(function (t) { return t.service === x.nom; }).length;
+      }, 0);
+      if (!n) return;
+      var b = el("button", "puce", serviceCourt(x.nom) + " · " + n);
+      b.type = "button";
+      b.setAttribute("aria-pressed", String(S.service === x.nom));
+      if (S.service === x.nom) {
+        b.style.background = "var(" + x.css + ")";
+        b.style.borderColor = "var(" + x.css + ")";
+        b.style.color = "#fff";
+      }
+      b.onclick = function () { S.service = S.service === x.nom ? "" : x.nom; rafraichir(); };
+      f.appendChild(b);
+    });
+    if (S.zone) {
+      var z = el("button", "puce ana-puce-zone", S.zone + " ✕");
+      z.type = "button";
+      z.setAttribute("aria-pressed", "true");
+      z.setAttribute("aria-label", "Retirer le filtre sur le quartier " + S.zone);
+      z.onclick = function () { S.zone = ""; rafraichir(); };
+      f.appendChild(z);
+    }
+    return f;
+  }
+
+  /* ---- quartiers ----
+     Classés par taux : en haut ce qui est soldé, en bas ce qui ne démarre pas.
+     C'est la lecture qu'on vient chercher, et elle ne tient pas dans un
+     graphique à axes — le nom du quartier y serait plus long que sa barre. */
+  function blocQuartiers(lot) {
+    var par = {};
+    lot.forEach(function (e) {
+      if (!par[e.quartier]) par[e.quartier] = { nom: e.quartier, ecoles: [] };
+      par[e.quartier].ecoles.push(e);
+    });
+    var rangs = [];
+    Object.keys(par).forEach(function (n) {
+      var q = par[n];
+      q.a = compterEtats(interventionsDe(q.ecoles, S.service));
+      if (!q.a.total) return;
+      q.taux = pourcent(q.a.faits, q.a.total);
+      rangs.push(q);
+    });
+    rangs.sort(function (x, y) {
+      return y.taux - x.taux || y.a.total - x.a.total || (x.nom < y.nom ? -1 : 1);
+    });
+
+    var b = el("div", "bloc");
+    var t = el("div", "bloc-titre");
+    t.appendChild(el("span", null, "Avancement par quartier"));
+    /* Un quartier dont les écoles se soldent sur pièces n'a aucune
+       intervention à pointer : il n'entre pas dans le classement, et une
+       barre vide le dirait en retard. Le compteur dit alors « 24/26 » plutôt
+       que « 24 », sans quoi il contredirait le résumé juste au-dessus. */
+    var nq = Object.keys(par).length;
+    t.appendChild(el("span", "rang mono",
+      (rangs.length < nq ? rangs.length + "/" + nq : String(nq)) +
+      (nq > 1 ? " quartiers" : " quartier")));
+    b.appendChild(t);
+    if (!rangs.length) {
+      b.appendChild(el("p", "note-hors", "Aucune intervention ne répond aux filtres actifs."));
+      return b;
+    }
+    if (rangs.length < nq) {
+      var manque = nq - rangs.length;
+      b.appendChild(el("p", "note-hors", manque + (manque > 1 ? " quartiers n'ont" : " quartier n'a") +
+        " aucune intervention à pointer" + (S.service ? " pour ce service" : "") +
+        " : non classé" + (manque > 1 ? "s" : "") + " ici."));
+    }
+    b.appendChild(legendeEtats(["fait", "encours", "bloque", "attente"]));
+
+    rangs.forEach(function (q) {
+      var w = el("button", "barre-ligne ana-ligne" + (S.zone === q.nom ? " active" : ""));
+      w.type = "button";
+      w.setAttribute("aria-pressed", String(S.zone === q.nom));
+      var n = el("div", "barre-nom");
+      n.appendChild(el("span", null, q.nom));
+      var ne = nbEtab(q.ecoles);
+      n.appendChild(el("em", null, ne + (ne > 1 ? " écoles" : " école")));
+      w.appendChild(n);
+      w.appendChild(el("div", "barre-val mono", q.taux + " % · " + q.a.faits + "/" + q.a.total));
+      var barre = el("div", "barre");
+      [["f", q.a.faits], ["e", q.a.encours], ["b", q.a.bloques]].forEach(function (x) {
+        var i = el("i", x[0]);
+        i.style.width = (100 * x[1] / q.a.total) + "%";
+        barre.appendChild(i);
+      });
+      w.appendChild(barre);
+      /* Un quartier déjà choisi se déchoisit du même geste : sans cela il
+         faudrait remonter à la puce pour revenir à la vue d'ensemble. */
+      w.onclick = function () { S.zone = S.zone === q.nom ? "" : q.nom; rafraichir(); };
+      b.appendChild(w);
+    });
+
+    tableValeurs(rangs.map(function (q) {
+      return [q.nom, q.taux + " % · " + q.a.faits + "/" + q.a.total];
+    })).forEach(function (x) { b.appendChild(x); });
+    return b;
+  }
+
+  /* ---- progression des tournées ----
+     Une colonne par unité communale, le rang de passage en abscisse, le taux de
+     l'école en ordonnée. Lue de gauche à droite, la file de points dit jusqu'où
+     l'équipe est allée ; un point resté en bas derrière les autres est une école
+     sautée — celle que le Bilan liste plus bas, mais qu'on voit ici d'un regard.
+     L'unité se lit à sa place dans la grille, jamais à une couleur : trois
+     teintes de plus pour la seule identité des UC rendraient les quatre états
+     indéchiffrables. */
+  function grapheTournee(uc, lot, maxOrdre) {
+    var L = 320, H = 118, ml = 28, mr = 12, mt = 12, mb = 22;
+    var liste = lot.filter(function (e) { return e.uc === uc; });
+    var px = function (o) {
+      return maxOrdre < 2 ? ml : ml + (o - 1) * (L - ml - mr) / (maxOrdre - 1);
+    };
+    var py = function (v) { return mt + (1 - v / 100) * (H - mt - mb); };
+    var g = ['<svg class="graphe ana-nuage" viewBox="0 0 ' + L + ' ' + H + '" role="img" aria-label="' +
+      'Unité communale ' + uc + ' : taux de réalisation de chaque école selon son rang de passage, ' +
+      nbEtab(liste) + ' établissements">'];
+    [0, 50, 100].forEach(function (v) {
+      var y = py(v);
+      g.push('<line x1="' + ml + '" y1="' + y.toFixed(1) + '" x2="' + (L - mr) + '" y2="' + y.toFixed(1) +
+        '" stroke="var(--trait)" stroke-width="1"' + (v ? ' stroke-dasharray="2 4"' : '') + '/>');
+      g.push('<text x="' + (ml - 6) + '" y="' + (y + 3.5).toFixed(1) + '" text-anchor="end" class="graphe-axe">' +
+        v + (v === 100 ? " %" : "") + '</text>');
+    });
+    liste.slice().sort(function (a, b) { return a.ordre - b.ordre; }).forEach(function (e) {
+      var x = px(e.ordre), y = py(tauxEcole(e)), et = etatEcole(e);
+      var b = bilanEcole(e);
+      var titre = esc(e.nom) + " — rang " + e.ordre + ", " + esc(e.quartier) + " : " +
+        (b.total ? b.faits + "/" + b.total + " interventions" : "soldée sur pièces") +
+        " · " + NOM_ETAT[et].toLowerCase();
+      g.push('<g class="ana-pt" data-id="' + e.id + '" role="button" tabindex="0" aria-label="' + titre + '">');
+      g.push('<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="11" fill="transparent"/>');
+      if (e.priorite === 1) {
+        g.push('<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) +
+          '" r="8.4" fill="none" stroke="var(--laterite)" stroke-width="1.7"/>');
+      }
+      g.push('<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="5.2" fill="' + TEINTE_ETAT[et] +
+        '" stroke="var(--surface)" stroke-width="2"><title>' + titre + '</title></circle>');
+      g.push("</g>");
+    });
+    g.push('<text x="' + ml + '" y="' + (H - 5) + '" class="graphe-axe">rang 1</text>');
+    if (maxOrdre > 1) {
+      g.push('<text x="' + (L - mr) + '" y="' + (H - 5) + '" text-anchor="end" class="graphe-axe">rang ' +
+        maxOrdre + '</text>');
+    }
+    g.push("</svg>");
+    return g.join("");
+  }
+
+  function blocTournees(lot) {
+    var b = el("div", "bloc");
+    var t = el("div", "bloc-titre");
+    t.appendChild(el("span", null, "Progression des tournées"));
+    t.appendChild(el("span", "rang mono", "taux par école"));
+    b.appendChild(t);
+    b.appendChild(el("p", "note-hors",
+      "Chaque point est un établissement, placé à son rang de passage et à la hauteur de " +
+      "son taux de réalisation. Touchez un point pour ouvrir sa fiche."));
+    b.appendChild(legendeEtats(["fait", "encours", "bloque", "attente"]));
+
+    var ucs = [1, 2, 3].filter(function (n) {
+      return (!S.uc || S.uc === n) && lot.some(function (e) { return e.uc === n; });
+    });
+    /* Le rang maximal se prend sur le programme entier, non sur le lot filtré :
+       sinon choisir un quartier redessinerait l'abscisse et la file de points
+       changerait de place sans que rien n'ait bougé sur le terrain. */
+    var maxOrdre = ECOLES.reduce(function (m, e) {
+      return horsProgramme(e) ? m : Math.max(m, e.ordre);
+    }, 1);
+    var grille = el("div", "ana-grille");
+    ucs.forEach(function (n) {
+      var liste = lot.filter(function (e) { return e.uc === n; });
+      var a = compterEtats(interventionsDe(liste, S.service));
+      var c = el("div", "ana-facette");
+      var ct = el("div", "ana-facette-titre");
+      ct.appendChild(el("span", null, "UC " + n));
+      ct.appendChild(el("span", "mono", nbEtab(liste) + " écoles · " + pourcent(a.faits, a.total) + " %"));
+      c.appendChild(ct);
+      var boite = el("div", "graphe-boite");
+      boite.innerHTML = grapheTournee(n, lot, maxOrdre);
+      c.appendChild(boite);
+      grille.appendChild(c);
+    });
+    b.appendChild(grille);
+
+    Array.prototype.forEach.call(b.querySelectorAll(".ana-pt"), function (g) {
+      var ouvrir = function () { ouvrirFiche(g.getAttribute("data-id")); };
+      g.addEventListener("click", ouvrir);
+      g.addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); ouvrir(); }
+      });
+    });
+    return b;
+  }
+
+  /* ---- matrice ----
+     Où un service n'a pas encore commencé. Une seule teinte, du clair au plein :
+     l'intensité porte le taux, la couleur ne porte rien — un arc-en-ciel ferait
+     croire à cinq catégories là où il n'y a qu'une mesure. Une case sans
+     intervention n'est pas « 0 % » : elle reste vide, pour qu'on ne lise pas un
+     retard là où il n'y a rien à faire. */
+  var PALIERS = [
+    { max: 0, o: 0, txt: "aucune réalisée" },
+    { max: 25, o: 0.22, txt: "1 à 25 %" },
+    { max: 50, o: 0.42, txt: "26 à 50 %" },
+    { max: 75, o: 0.64, txt: "51 à 75 %" },
+    { max: 99, o: 0.84, txt: "76 à 99 %" },
+    { max: 100, o: 1, txt: "soldé" }
+  ];
+  function palierDe(taux) {
+    for (var i = 0; i < PALIERS.length; i++) if (taux <= PALIERS[i].max) return i;
+    return PALIERS.length - 1;
+  }
+
+  function grapheMatrice(lot, ucs) {
+    var svs = SERVICES.filter(function (x) {
+      return lot.some(function (e) {
+        return e.taches.some(function (t) { return t.service === x.nom; });
+      });
+    });
+    var L = 320, lg = 116, hc = 34, ec = 3, mt = 16;
+    var lc = (L - lg) / ucs.length;
+    var H = mt + svs.length * hc + 4;
+    var g = ['<svg class="graphe ana-matrice" viewBox="0 0 ' + L + ' ' + H + '" role="img" aria-label="' +
+      'Taux de réalisation par service pilote et par unité communale">'];
+    ucs.forEach(function (n, j) {
+      g.push('<text x="' + (lg + j * lc + (lc - ec) / 2).toFixed(1) + '" y="10" text-anchor="middle" ' +
+        'class="graphe-axe">UC ' + n + '</text>');
+    });
+    svs.forEach(function (sv, i) {
+      var y = mt + i * hc;
+      /* Un service filtré ne fait pas disparaître les autres lignes : une
+         colonne de trois cases ne se compare à rien. Elles restent, en retrait,
+         pour que la ligne retenue se lise sur fond de ce qu'elle vaut. */
+      g.push('<g' + (S.service && sv.nom !== S.service ? ' opacity="0.4"' : '') + '>');
+      g.push('<text x="0" y="' + (y + hc / 2 + 3.5).toFixed(1) + '" class="ana-matrice-nom">' +
+        esc(serviceCourt(sv.nom)) + '</text>');
+      ucs.forEach(function (n, j) {
+        var liste = lot.filter(function (e) { return e.uc === n; });
+        var a = compterEtats(interventionsDe(liste, sv.nom));
+        var x = lg + j * lc, l = lc - ec, h = hc - ec;
+        var titre = esc(serviceCourt(sv.nom)) + " · UC " + n + " : " +
+          (a.total ? a.faits + " réalisées sur " + a.total + " (" + pourcent(a.faits, a.total) + " %)"
+                   : "aucune intervention");
+        if (!a.total) {
+          g.push('<rect x="' + x.toFixed(1) + '" y="' + y + '" width="' + l.toFixed(1) + '" height="' + h +
+            '" rx="4" fill="none" stroke="var(--trait)" stroke-width="1" stroke-dasharray="3 3">' +
+            '<title>' + titre + '</title></rect>');
+          g.push('<text x="' + (x + l / 2).toFixed(1) + '" y="' + (y + hc / 2 + 3) +
+            '" text-anchor="middle" class="graphe-axe">—</text>');
+          return;
+        }
+        var taux = pourcent(a.faits, a.total), p = palierDe(taux);
+        g.push('<g class="ana-case" data-sv="' + esc(sv.nom) + '" data-uc="' + n + '" role="button" ' +
+          'tabindex="0" aria-label="' + titre + '">');
+        g.push('<rect x="' + x.toFixed(1) + '" y="' + y + '" width="' + l.toFixed(1) + '" height="' + h +
+          '" rx="4" fill="var(--creux)"/>');
+        g.push('<rect x="' + x.toFixed(1) + '" y="' + y + '" width="' + l.toFixed(1) + '" height="' + h +
+          '" rx="4" fill="var(--vert-vif)" fill-opacity="' + PALIERS[p].o + '">' +
+          '<title>' + titre + '</title></rect>');
+        g.push('<text x="' + (x + l / 2).toFixed(1) + '" y="' + (y + hc / 2 + 3.5) +
+          '" text-anchor="middle" class="ana-case-val' + (p >= 4 ? " clair" : "") + '">' + taux + '</text>');
+        g.push("</g>");
+      });
+      g.push("</g>");
+    });
+    g.push("</svg>");
+    return g.join("");
+  }
+
+  function blocMatrice(lot) {
+    var ucs = [1, 2, 3].filter(function (n) {
+      return (!S.uc || S.uc === n) && lot.some(function (e) { return e.uc === n; });
+    });
+    var b = el("div", "bloc");
+    var t = el("div", "bloc-titre");
+    t.appendChild(el("span", null, "Services pilotes et unités communales"));
+    t.appendChild(el("span", "rang mono", "% réalisé"));
+    b.appendChild(t);
+    if (!ucs.length) {
+      b.appendChild(el("p", "note-hors", "Aucune intervention ne répond aux filtres actifs."));
+      return b;
+    }
+    var boite = el("div", "graphe-boite");
+    boite.innerHTML = grapheMatrice(lot, ucs);
+    b.appendChild(boite);
+
+    var ramp = el("div", "ana-ramp");
+    PALIERS.forEach(function (p) {
+      var s = el("span");
+      var c = el("b");
+      if (p.o) { c.style.background = "var(--vert-vif)"; c.style.opacity = p.o; }
+      else { c.style.background = "var(--creux)"; }
+      s.appendChild(c);
+      s.appendChild(document.createTextNode(p.txt));
+      ramp.appendChild(s);
+    });
+    b.appendChild(ramp);
+
+    Array.prototype.forEach.call(b.querySelectorAll(".ana-case"), function (g) {
+      var choisir = function () {
+        var sv = g.getAttribute("data-sv");
+        S.service = S.service === sv ? "" : sv;
+        S.uc = +g.getAttribute("data-uc");
+        rafraichir();
+      };
+      g.addEventListener("click", choisir);
+      g.addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); choisir(); }
+      });
+    });
+
+    var lignes = [];
+    SERVICES.forEach(function (sv) {
+      ucs.forEach(function (n) {
+        var a = compterEtats(interventionsDe(lot.filter(function (e) { return e.uc === n; }), sv.nom));
+        if (a.total) {
+          lignes.push([serviceCourt(sv.nom) + " · UC " + n,
+            pourcent(a.faits, a.total) + " % · " + a.faits + "/" + a.total]);
+        }
+      });
+    });
+    tableValeurs(lignes).forEach(function (x) { b.appendChild(x); });
+    return b;
+  }
+
+  /* ---- la vue ---- */
+  function rendreAnalyse() {
+    var v = $("#vueAnalyse");
+    v.innerHTML = "";
+    var lot = lotAnalyse();
+    var a = compterEtats(interventionsDe(lot, S.service));
+    var soldees = lot.filter(function (e) { return bilanEcole(e).fini; });
+    var quartiers = {};
+    lot.forEach(function (e) { quartiers[e.quartier] = 1; });
+
+    var sit = el("div", "situation");
+    var sh = el("div", "situation-haut");
+    sh.appendChild(el("span", "situation-jour", "Croisements au " + dateLongue(aujourdhui()).toLowerCase()));
+    sh.appendChild(el("span", "situation-jn", "J+" + joursEntre(CAMPAGNE.debut, aujourdhui())));
+    sit.appendChild(sh);
+    /* La phrase dit sur quoi portent les chiffres qui suivent : filtrés, ils ne
+       sont plus ceux du Bilan, et deux écrans qui se contredisent sans le dire
+       font douter des deux. */
+    var cadre = [];
+    if (S.uc) cadre.push("UC " + S.uc);
+    if (S.zone) cadre.push("quartier de " + S.zone);
+    if (S.service) cadre.push(serviceCourt(S.service));
+    var resume = el("p", "situation-resume");
+    resume.appendChild(el("b", null, cadre.length ? "Vue restreinte : " + cadre.join(", ") + "."
+                                                  : "Programme entier."));
+    /* Établissements comptés par code SIG, fiches comptées à part : c'est la
+       règle du Bilan, et deux écrans qui comptent autrement se contredisent. */
+    var ne = nbEtab(lot), nq = Object.keys(quartiers).length;
+    resume.appendChild(document.createTextNode(" " + ne + " établissements" +
+      (ne !== lot.length ? " sur " + lot.length + " fiches" : "") + ", " +
+      a.total + " interventions, " + nq + (nq > 1 ? " quartiers." : " quartier.")));
+    sit.appendChild(resume);
+    sit.appendChild(el("p", "situation-src",
+      "Croisements calculés sur les relevés de la base partagée. " +
+      "Touchez un quartier, une case ou un point : tout l'écran suit."));
+    v.appendChild(sit);
+
+    v.appendChild(filtresAnalyse());
+
+    var k = el("div", "kpis");
+    [[pourcent(a.faits, a.total) + " %", "Interventions réalisées", "vert",
+      a.total ? a.faits + " sur " + a.total : "aucune intervention", ""],
+    [nbEtab(soldees) + "/" + nbEtab(lot), "Établissements soldés", "",
+      lot.length ? pourcent(nbEtab(soldees), nbEtab(lot)) + " % du lot" : "", ""],
+    [String(a.encours), "En cours", "", a.encours ? "interventions entamées" : "rien d'entamé", "vif"],
+    [String(a.bloques), "Points bloqués", a.bloques ? "laterite" : "",
+      a.bloques ? "à débloquer avant reprise" : "aucun blocage", ""]].forEach(function (p) {
+      var c = el("div", "kpi" + (p[2] ? " kpi-" + p[2] : ""));
+      c.appendChild(el("div", "n mono", p[0]));
+      c.appendChild(el("div", "l", p[1]));
+      if (p[3]) c.appendChild(el("div", "s" + (p[4] ? " " + p[4] : ""), p[3]));
+      k.appendChild(c);
+    });
+    v.appendChild(k);
+
+    if (!lot.length) {
+      v.appendChild(el("p", "note-hors", "Aucun établissement ne répond aux filtres actifs. " +
+        "Retirez un filtre pour revoir le programme."));
+      return;
+    }
+
+    v.appendChild(blocQuartiers(lot));
+    v.appendChild(blocTournees(lot));
+    v.appendChild(blocMatrice(lot));
+    v.appendChild(blocEvolution(lot, S.service));
+
+    if (!analyseJouee) { analyseJouee = true; animerBilan(v); }
+
+    v.appendChild(el("p", "note-pied",
+      "Mesures prises sur le programme de nettoiement : les établissements relevés hors programme " +
+      "n'y figurent pas, leurs interventions revenant à d'autres services. Une intervention compte " +
+      "pour réalisée dès qu'un agent l'a pointée dans sa fiche."));
+  }
+
   /* ---------------- navigation ---------------- */
   /* Un seul cran d'historique pour les onglets, pas un par tapotement : quitter
      le Planning en pose un, y revenir le retire. Retour ramène donc au Planning,
@@ -3143,6 +3676,7 @@
      rejoue aux relectures de la base, toutes les trente secondes — une page
      qui s'anime sans cesse devient illisible, et fatigue une salle. */
   var bilanJoue = false;
+  var analyseJouee = false;
 
   function sobre() {
     try { return matchMedia("(prefers-reduced-motion: reduce)").matches; }
@@ -3212,11 +3746,13 @@
 
   function appliquerVue(vue) {
     if (vue !== "Bilan") bilanJoue = false;
+    if (vue !== "Analyse") analyseJouee = false;
     S.vue = vue;
     $("#vuePlanning").hidden = vue !== "Planning";
     $("#vueEcoles").hidden = vue !== "Ecoles";
     $("#vueCarte").hidden = vue !== "Carte";
     $("#vueBilan").hidden = vue !== "Bilan";
+    $("#vueAnalyse").hidden = vue !== "Analyse";
     Array.prototype.forEach.call(document.querySelectorAll(".nav button"), function (b) {
       if (b.getAttribute("data-vue") === vue) b.setAttribute("aria-current", "page");
       else b.removeAttribute("aria-current");
@@ -3230,6 +3766,7 @@
     if (S.vue === "Planning") rendrePlanning();
     else if (S.vue === "Ecoles") rendreListe();
     else if (S.vue === "Carte") rendreCarte();
+    else if (S.vue === "Analyse") rendreAnalyse();
     else rendreBilan();
     resoudreNoms();
   }

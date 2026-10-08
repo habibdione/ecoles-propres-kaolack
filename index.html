@@ -673,6 +673,60 @@ main{padding:var(--e4) var(--e4) 100px}
 .barre i.f{background:var(--vert-vif)}
 .barre i.e{background:var(--ambre)}
 .barre i.b{background:var(--laterite)}
+
+/* ═══ tableau de bord ═══
+   Les briques du Bilan — bloc, kpi, barre — plus ce qu'exige la lecture
+   croisée : des légendes, des facettes côte à côte, et des marques qui
+   répondent au doigt. Aucune teinte en dur : les deux thèmes suivent. */
+.ana-filtres{margin-bottom:var(--e3)}
+.ana-puce-zone{background:var(--vert); border-color:var(--vert); color:#fff}
+.ana-legende{
+  display:flex; flex-wrap:wrap; gap:5px 14px; margin:0 0 var(--e3);
+  font-size:11px; color:var(--texte-2); font-weight:600;
+}
+.ana-legende span{display:flex; align-items:center; gap:6px}
+.ana-legende b{width:9px; height:9px; border-radius:3px; flex:none}
+/* Une ligne de quartier est un bouton : elle garde l'allure d'une ligne et
+   ne se signale qu'au doigt, puis par son fond une fois retenue. */
+.ana-ligne{
+  width:100%; text-align:left; background:none; border:0; cursor:pointer;
+  padding:7px 8px; margin:0 -8px var(--e1); border-radius:var(--r-s);
+  transition:background .12s;
+}
+.ana-ligne:active{background:var(--creux)}
+.ana-ligne.active{background:var(--vert-pale)}
+.ana-ligne .barre-nom{justify-content:flex-start; gap:8px}
+.ana-ligne .barre-nom em{font-style:normal; font-size:11px; color:var(--texte-3); font-weight:700}
+.ana-grille{display:grid; gap:var(--e4)}
+.ana-facette-titre{
+  display:flex; align-items:baseline; justify-content:space-between; gap:8px;
+  font-size:11.5px; font-weight:800; color:var(--texte-2); margin-bottom:4px;
+}
+.ana-facette-titre .mono{font-size:11px; color:var(--texte-3); font-weight:700}
+.ana-pt{cursor:pointer}
+.ana-pt:focus{outline:none}
+.ana-pt:focus-visible circle:last-of-type{stroke:var(--texte); stroke-width:3}
+.ana-matrice-nom{font-size:10.5px; font-weight:700; fill:var(--texte-2)}
+.ana-case{cursor:pointer}
+.ana-case:focus{outline:none}
+.ana-case:focus-visible rect:last-of-type{stroke:var(--texte); stroke-width:2}
+.ana-case-val{
+  font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:11px;
+  font-weight:700; fill:var(--texte-2);
+}
+/* Sur une case pleine, l'encre du texte devient la surface de la carte :
+   blanc en clair, sombre en mode nuit — le contraste tient des deux côtés. */
+.ana-case-val.clair{fill:var(--surface)}
+.ana-ramp{
+  display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:10px;
+  font-size:10.5px; color:var(--texte-3); font-weight:600;
+}
+.ana-ramp span{display:flex; align-items:center; gap:5px}
+.ana-ramp b{width:11px; height:11px; border-radius:3px; flex:none; border:1px solid var(--trait)}
+@media (min-width:700px){
+  /* les trois unités communales se lisent alors d'un seul regard */
+  .ana-grille{grid-template-columns:repeat(3,1fr); gap:var(--e3)}
+}
 .alerte-liste{display:flex; flex-direction:column; gap:var(--e3)}
 .alerte{display:flex; gap:10px; align-items:flex-start; font-size:13.5px; line-height:1.35}
 .alerte .pt{width:6px; height:6px; border-radius:50%; background:var(--laterite); margin-top:7px; flex:none}
@@ -838,7 +892,7 @@ main{padding:var(--e4) var(--e4) 100px}
   padding-bottom:max(env(safe-area-inset-bottom), 6px);
   box-shadow:0 -1px 14px rgba(18,36,28,.05);
 }
-.nav-inner{max-width:560px; margin:0 auto; display:grid; grid-template-columns:repeat(4,1fr)}
+.nav-inner{max-width:560px; margin:0 auto; display:grid; grid-template-columns:repeat(5,1fr)}
 .nav button{
   background:none; border:0; padding:10px 4px 11px; display:flex; flex-direction:column;
   align-items:center; gap:4px; font-size:9.5px; font-weight:800; color:var(--texte-3);
@@ -1127,6 +1181,9 @@ main{padding:var(--e4) var(--e4) 100px}
     </section>
 
     <section class="vue" id="vueBilan" hidden></section>
+
+    <!-- Tableau de bord : les mêmes relevés croisés, et filtrés par un clic. -->
+    <section class="vue" id="vueAnalyse" hidden></section>
   </main>
 
   <nav class="nav" aria-label="Sections">
@@ -1146,6 +1203,10 @@ main{padding:var(--e4) var(--e4) 100px}
       <button data-vue="Bilan">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
         Bilan
+      </button>
+      <button data-vue="Analyse">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.6"/><path d="M17.25 13.5v7.5M13.5 17.25h7.5"/></svg>
+        Analyse
       </button>
     </div>
   </nav>

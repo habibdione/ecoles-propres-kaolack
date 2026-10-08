@@ -20,6 +20,10 @@ la page ouverte une première fois, elle s'ouvre encore sans réseau.
   zoom et déplacement, sans consommer de données mobiles.
 - **Bilan** — avancement par UC et par service, courbe d'évolution, rythme quotidien,
   écoles prioritaires sans date, points à confirmer, dotation en matériel, export CSV.
+- **Analyse** — les mêmes relevés croisés : classement des quartiers, progression de
+  chaque tournée école par école, matrice services × unités communales, rythme de la
+  campagne. Un clic sur un quartier, une case ou un point filtre tout l'écran ou ouvre
+  la fiche.
 
 234 photos de terrain et les fiches du rapport d'exécution sont embarquées.
 

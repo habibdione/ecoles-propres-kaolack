@@ -678,6 +678,25 @@ main{padding:var(--e4) var(--e4) 100px}
    Les briques du Bilan — bloc, kpi, barre — plus ce qu'exige la lecture
    croisée : des légendes, des facettes côte à côte, et des marques qui
    répondent au doigt. Aucune teinte en dur : les deux thèmes suivent. */
+/* L'en-tête du tableau de bord ne reprend pas la carte crème du Bilan : un
+   titre souligné, les chiffres de cadrage sur la même ligne, et les filtres.
+   Deux écrans qui s'ouvrent pareil se confondent. */
+.ana-entete{margin-bottom:var(--e4)}
+.ana-entete-haut{
+  display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between;
+  gap:3px 12px; padding:0 2px 9px; margin-bottom:var(--e3);
+  border-bottom:1px solid var(--trait-fort);
+}
+.ana-portee{
+  font-family:"Archivo",sans-serif; font-size:18px; font-weight:700;
+  letter-spacing:-.025em; line-height:1.15;
+}
+.ana-chiffres{font-size:11.5px; color:var(--texte-2); font-weight:700; white-space:nowrap}
+.ana-aide{font-size:11.5px; color:var(--texte-3); line-height:1.45; margin:0 2px}
+.ana-rang{
+  font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:10.5px;
+  font-weight:700; color:var(--texte-3); min-width:17px; flex:none;
+}
 .ana-filtres{margin-bottom:var(--e3)}
 .ana-puce-zone{background:var(--vert); border-color:var(--vert); color:#fff}
 .ana-legende{

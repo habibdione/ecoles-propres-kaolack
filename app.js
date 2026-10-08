@@ -2399,15 +2399,11 @@
      Les dates viennent de l'horodatage de chaque intervention passée à « fait ».
      Deux mesures, deux graphiques : jamais deux échelles sur un même axe. */
 
-  /* Le lot et le service sont facultatifs : le Bilan mesure le programme
-     entier, le tableau de bord la part qu'on y a filtrée. Une seule fonction
-     pour les deux écrans, qui comptent donc de la même façon. */
-  function serieAvancement(lot, service) {
+  function serieAvancement() {
     var parJour = {};
-    (lot || ECOLES).forEach(function (e) {
+    ECOLES.forEach(function (e) {
       var t = suiviDe(e.id).taches || {};
       e.taches.forEach(function (x) {
-        if (service && x.service !== service) return;
         var st = t[x.id];
         if (!st || st.e !== "fait" || !st.le) return;
         var j = String(st.le).slice(0, 10);
@@ -2519,15 +2515,13 @@
     return g.join("");
   }
 
-  function blocEvolution(lot, service) {
-    var serie = serieAvancement(lot, service);
+  function blocEvolution() {
+    var serie = serieAvancement();
     /* Même dénominateur que le compteur d'interventions : le programme, pas le
        catalogue. Deux totaux différents sur un même écran se lisent comme une
        erreur, et l'un des deux en serait une. */
-    var total = (lot || ECOLES).reduce(function (n, e) {
-      if (horsProgramme(e)) return n;
-      return n + (service ? e.taches.filter(function (t) { return t.service === service; }).length
-                          : e.taches.length);
+    var total = ECOLES.reduce(function (n, e) {
+      return horsProgramme(e) ? n : n + e.taches.length;
     }, 0);
     var fait = serie.length ? serie[serie.length - 1].cumul : 0;
 
@@ -3072,7 +3066,7 @@
       v.appendChild(loc);
     }
 
-    if (!bilanJoue) { bilanJoue = true; animerBilan(v); }
+    if (!bilanJoue) { bilanJoue = true; animerTableau(v); }
 
     var note = el("p", "note-pied");
     note.innerHTML = "Périmètre arrêté par le CSIG le 21/09 : dans les établissements scolaires, la SONAGED intervient pour " +
@@ -3322,11 +3316,12 @@
     }
     b.appendChild(legendeEtats(["fait", "encours", "bloque", "attente"]));
 
-    rangs.forEach(function (q) {
+    rangs.forEach(function (q, i) {
       var w = el("button", "barre-ligne ana-ligne" + (S.zone === q.nom ? " active" : ""));
       w.type = "button";
       w.setAttribute("aria-pressed", String(S.zone === q.nom));
       var n = el("div", "barre-nom");
+      n.appendChild(el("span", "ana-rang", (i + 1) + "."));
       n.appendChild(el("span", null, q.nom));
       var ne = nbEtab(q.ecoles);
       n.appendChild(el("em", null, ne + (ne > 1 ? " écoles" : " école")));
@@ -3584,54 +3579,27 @@
     v.innerHTML = "";
     var lot = lotAnalyse();
     var a = compterEtats(interventionsDe(lot, S.service));
-    var soldees = lot.filter(function (e) { return bilanEcole(e).fini; });
-    var quartiers = {};
-    lot.forEach(function (e) { quartiers[e.quartier] = 1; });
 
-    var sit = el("div", "situation");
-    var sh = el("div", "situation-haut");
-    sh.appendChild(el("span", "situation-jour", "Croisements au " + dateLongue(aujourdhui()).toLowerCase()));
-    sh.appendChild(el("span", "situation-jn", "J+" + joursEntre(CAMPAGNE.debut, aujourdhui())));
-    sit.appendChild(sh);
-    /* La phrase dit sur quoi portent les chiffres qui suivent : filtrés, ils ne
-       sont plus ceux du Bilan, et deux écrans qui se contredisent sans le dire
-       font douter des deux. */
+    /* Ni carte de situation, ni rangée de compteurs, ni courbe d'évolution :
+       ce sont ceux du Bilan. Deux écrans qui s'ouvrent sur le même bloc et
+       finissent sur la même courbe se confondent — on ne sait plus lequel on
+       lit, ni lequel fait foi. Ici l'état du filtrage tient en une ligne, et
+       les graphiques commencent aussitôt ; les chiffres de référence restent
+       au Bilan, qui est le document qu'on présente. */
     var cadre = [];
     if (S.uc) cadre.push("UC " + S.uc);
-    if (S.zone) cadre.push("quartier de " + S.zone);
+    if (S.zone) cadre.push(S.zone);
     if (S.service) cadre.push(serviceCourt(S.service));
-    var resume = el("p", "situation-resume");
-    resume.appendChild(el("b", null, cadre.length ? "Vue restreinte : " + cadre.join(", ") + "."
-                                                  : "Programme entier."));
-    /* Établissements comptés par code SIG, fiches comptées à part : c'est la
-       règle du Bilan, et deux écrans qui comptent autrement se contredisent. */
-    var ne = nbEtab(lot), nq = Object.keys(quartiers).length;
-    resume.appendChild(document.createTextNode(" " + ne + " établissements" +
-      (ne !== lot.length ? " sur " + lot.length + " fiches" : "") + ", " +
-      a.total + " interventions, " + nq + (nq > 1 ? " quartiers." : " quartier.")));
-    sit.appendChild(resume);
-    sit.appendChild(el("p", "situation-src",
-      "Croisements calculés sur les relevés de la base partagée. " +
+    var ent = el("div", "ana-entete");
+    var h = el("div", "ana-entete-haut");
+    h.appendChild(el("span", "ana-portee", cadre.length ? cadre.join(" · ") : "Programme entier"));
+    h.appendChild(el("span", "ana-chiffres mono", nbEtab(lot) + " écoles · " + a.total +
+      " interventions · " + pourcent(a.faits, a.total) + " % réalisées"));
+    ent.appendChild(h);
+    ent.appendChild(filtresAnalyse());
+    ent.appendChild(el("p", "ana-aide",
       "Touchez un quartier, une case ou un point : tout l'écran suit."));
-    v.appendChild(sit);
-
-    v.appendChild(filtresAnalyse());
-
-    var k = el("div", "kpis");
-    [[pourcent(a.faits, a.total) + " %", "Interventions réalisées", "vert",
-      a.total ? a.faits + " sur " + a.total : "aucune intervention", ""],
-    [nbEtab(soldees) + "/" + nbEtab(lot), "Établissements soldés", "",
-      lot.length ? pourcent(nbEtab(soldees), nbEtab(lot)) + " % du lot" : "", ""],
-    [String(a.encours), "En cours", "", a.encours ? "interventions entamées" : "rien d'entamé", "vif"],
-    [String(a.bloques), "Points bloqués", a.bloques ? "laterite" : "",
-      a.bloques ? "à débloquer avant reprise" : "aucun blocage", ""]].forEach(function (p) {
-      var c = el("div", "kpi" + (p[2] ? " kpi-" + p[2] : ""));
-      c.appendChild(el("div", "n mono", p[0]));
-      c.appendChild(el("div", "l", p[1]));
-      if (p[3]) c.appendChild(el("div", "s" + (p[4] ? " " + p[4] : ""), p[3]));
-      k.appendChild(c);
-    });
-    v.appendChild(k);
+    v.appendChild(ent);
 
     if (!lot.length) {
       v.appendChild(el("p", "note-hors", "Aucun établissement ne répond aux filtres actifs. " +
@@ -3642,9 +3610,8 @@
     v.appendChild(blocQuartiers(lot));
     v.appendChild(blocTournees(lot));
     v.appendChild(blocMatrice(lot));
-    v.appendChild(blocEvolution(lot, S.service));
 
-    if (!analyseJouee) { analyseJouee = true; animerBilan(v); }
+    if (!analyseJouee) { analyseJouee = true; animerTableau(v); }
 
     v.appendChild(el("p", "note-pied",
       "Mesures prises sur le programme de nettoiement : les établissements relevés hors programme " +
@@ -3701,7 +3668,7 @@
     requestAnimationFrame(pas);
   }
 
-  function animerBilan(v) {
+  function animerTableau(v) {
     if (sobre()) return;
     v.classList.add("anime");
     Array.prototype.forEach.call(v.children, function (c, i) {

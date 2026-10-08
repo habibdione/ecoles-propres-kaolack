@@ -1489,7 +1489,7 @@
         if (d) p.push('<path d="' + d + '"' + nse + style + ' stroke-linejoin="round" stroke-linecap="round"/>');
       }
       p.push('<path d="' + chemin(QUARTIERS.reduce(function (a, q) { return a.concat(q.rings); }, [])) +
-        '" class="c-quartier" fill="var(--creux)" stroke="var(--trait)"' + nse + 'stroke-linejoin="round"/>');
+        '" class="c-quartier" fill="var(--creux)" stroke="var(--laterite)"' + nse + 'stroke-linejoin="round"/>');
       couche(OSM.eauSurf, 'class="c-eauSurf" fill="var(--eau)" stroke="var(--eau)"');
       couche(OSM.piste, 'class="c-piste" fill="none" stroke="var(--trait-fort)"');
       couche(OSM.rue, 'class="c-rue" fill="none" stroke="var(--trait-fort)"');

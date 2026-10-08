@@ -429,7 +429,10 @@ main{padding:var(--e4) var(--e4) 100px}
   overflow:hidden; box-shadow:var(--ombre-2);
 }
 #carte{display:block; width:100%; height:auto; touch-action:none; --zw:1}
-#carte .c-quartier{stroke-width:calc(var(--zw) * .8px)}
+/* Limites administratives : le rouge de la commune, tireté pour les quartiers.
+   C'est la trame qu'il faut lire d'un coup d'oeil en vue d'ensemble, donc elle
+   contraste plus que la voirie au lieu de se fondre dans le fond. */
+#carte .c-quartier{stroke-width:calc(var(--zw) * 1.05px); stroke-opacity:.55; stroke-dasharray:5 3.5}
 #carte .c-eauSurf{fill-opacity:.24; stroke-opacity:.5; stroke-width:calc(var(--zw) * .6px)}
 #carte .c-piste{stroke-opacity:.5; stroke-width:calc(var(--zw) * .45px)}
 #carte .c-rue{stroke-opacity:.85; stroke-width:calc(var(--zw) * .8px)}
@@ -456,10 +459,30 @@ main{padding:var(--e4) var(--e4) 100px}
   border-radius:5px; padding:2px 6px; box-shadow:var(--ombre-1);
 }
 .legende{
-  display:flex; flex-wrap:wrap; gap:8px 14px; padding:11px 13px;
-  border-top:1px solid var(--trait); font-size:11px; color:var(--texte-2); font-weight:500;
+  padding:11px 13px; border-top:1px solid var(--trait);
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(166px, 1fr)); gap:11px 18px;
 }
-.legende b{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; vertical-align:middle}
+.legende h4{
+  font-size:9.5px; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--texte-3); margin:0 0 6px;
+}
+.legende ul{list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:6px 13px}
+.legende li{display:flex; align-items:center; gap:6px; font-size:11px; color:var(--texte-2); font-weight:500}
+.legende b{flex:none; display:inline-block}
+/* Chaque pastille reprend la forme qu'elle a sur la carte : rond plein pour
+   l'avancement, anneau pour la priorité, trait pour les lignes du fond. */
+.lg-point{width:9px; height:9px; border-radius:50%}
+.lg-anneau{width:11px; height:11px; border-radius:50%; border:2px solid var(--laterite)}
+.lg-inond{width:11px; height:11px; position:relative; border-radius:50%; background:var(--trait-fort)}
+.lg-inond::after{
+  content:""; position:absolute; top:-2px; right:-3px; width:6px; height:6px;
+  border-radius:50%; background:var(--eau); border:1.5px solid var(--surface);
+}
+.lg-moi{width:9px; height:9px; margin:0 2px; border-radius:50%; background:var(--eau); box-shadow:0 0 0 3px var(--eau-pale)}
+.lg-trait{width:16px; height:2.6px; border-radius:2px}
+.lg-tirets{width:16px; height:0; border-top:2px dashed var(--laterite); opacity:.8}
+.lg-rail{width:16px; height:2px; background:repeating-linear-gradient(90deg, var(--texte-3) 0 4px, transparent 4px 7px)}
+.lg-zone{width:12px; height:10px; border-radius:2px; background:var(--eau-pale); border:1px solid var(--eau)}
 .apercu{
   margin-top:var(--e3); background:var(--surface); border-radius:var(--r);
   padding:var(--e4); box-shadow:var(--ombre-2);
@@ -1074,12 +1097,29 @@ main{padding:var(--e4) var(--e4) 100px}
           <button type="button" id="carteRecadrer" aria-label="Revoir toute la commune">⤢</button>
         </div>
         <svg id="carte" role="img" aria-label="Carte des établissements scolaires de la commune de Kaolack"></svg>
-        <div class="legende">
-          <span><b style="background:var(--trait-fort)"></b>À faire</span>
-          <span><b style="background:var(--ambre)"></b>En cours</span>
-          <span><b style="background:var(--vert)"></b>Terminé</span>
-          <span><b style="background:var(--laterite)"></b>Priorité 1</span>
-          <span><b style="background:var(--eau)"></b>Inondation constatée</span>
+        <div class="legende" role="group" aria-label="Légende de la carte">
+          <div>
+            <h4>Écoles</h4>
+            <ul>
+              <li><b class="lg-point" style="background:var(--trait-fort)"></b>À faire</li>
+              <li><b class="lg-point" style="background:var(--ambre)"></b>En cours</li>
+              <li><b class="lg-point" style="background:var(--vert)"></b>Terminé</li>
+              <li><b class="lg-anneau"></b>Priorité 1</li>
+              <li><b class="lg-inond"></b>Inondation constatée</li>
+              <li><b class="lg-moi"></b>Ma position</li>
+            </ul>
+          </div>
+          <div>
+            <h4>Fond de plan</h4>
+            <ul>
+              <li><b class="lg-trait" style="background:var(--laterite)"></b>Limite de la commune</li>
+              <li><b class="lg-tirets"></b>Limite de quartier</li>
+              <li><b class="lg-trait" style="background:var(--texte-2)"></b>Voie principale</li>
+              <li><b class="lg-trait" style="background:var(--trait-fort)"></b>Rue, piste</li>
+              <li><b class="lg-rail"></b>Voie ferrée</li>
+              <li><b class="lg-zone"></b>Marigot, bassin</li>
+            </ul>
+          </div>
         </div>
       </div>
       <div id="apercu"></div>

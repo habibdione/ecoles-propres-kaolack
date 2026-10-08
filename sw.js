@@ -1,6 +1,6 @@
 /* Agent de service — Écoles Propres Kaolack.
    Le noyau est mis en cache à l'installation ; les photos le sont au fil des consultations. */
-var VERSION = "05f3be43";
+var VERSION = "e74cc20a";
 var NOYAU = "noyau-" + VERSION;
 var MEDIA = "media-" + VERSION;
 var ESSENTIELS = [

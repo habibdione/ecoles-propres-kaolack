@@ -3937,10 +3937,49 @@
     toast("Application installée — retrouvez-la sur l'écran d'accueil.");
   });
 
+  /* Cinq secondes : le temps de lire le titre, les partenaires et ce que
+     l'application fait, sans que l'attente devienne une porte à pousser. */
+  var ATTENTE_EMBARQUEE = 5000;
+
   (function ecranAccueil() {
     var vue = $("#accueil");
     if (!vue || vue.hidden) return;   /* déjà écarté : on tourne en app installée */
     var installer = $("#accueilInstaller"), entrer = $("#accueilEntrer"), aide = $("#accueilAide");
+
+    /* Ouverte depuis Géodéchet — onglet « Gestion des écoles » — l'application
+       vit dans une iframe. Les deux boutons n'y ont plus de sens : ce qui
+       s'installe sur le téléphone, c'est Géodéchet, pas cette page ; et
+       « Continuer sans installer » devient une porte à pousser à chaque
+       ouverture de l'onglet. On garde l'accueil, qui présente les partenaires
+       et le périmètre, mais on entre tout seul au bout de cinq secondes.
+       Ouverte directement, l'application garde ses boutons : c'est là, et là
+       seulement, que l'installation a un sens. */
+    var embarquee = false;
+    try { embarquee = window.self !== window.top; } catch (e) { embarquee = true; }
+
+    if (embarquee) {
+      var actions = vue.querySelector(".accueil-actions");
+      if (actions) {
+        /* Le compte à rebours dit ce qui se passe : sans lui, cinq secondes
+           sur un écran fixe se lisent comme une page qui ne charge pas. */
+        actions.innerHTML = '<p class="accueil-attente" id="accueilAttente" ' +
+          'style="margin:0;color:#4a6b55;font-size:.95rem;" role="status">' +
+          'Ouverture de l\'application\u2026</p>';
+        var reste = Math.round(ATTENTE_EMBARQUEE / 1000);
+        var cible = document.getElementById("accueilAttente");
+        var tic = setInterval(function () {
+          reste--;
+          if (reste <= 0 || !cible || vue.hidden) { clearInterval(tic); return; }
+          cible.textContent = "Ouverture de l'application dans " + reste + "\u00a0s\u2026";
+        }, 1000);
+      }
+      setTimeout(function () {
+        if (vue.hidden) return;        /* déjà entré d'une autre façon */
+        vue.hidden = true;
+        avisEnCours();
+      }, ATTENTE_EMBARQUEE);
+      return;
+    }
 
     installer.onclick = function () {
       if (!INSTALL) {

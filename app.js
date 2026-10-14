@@ -209,7 +209,7 @@
   function contrainte(e) {
     /* Un relevé de reconnaissance prime sur tout : il date de la veille, le
        diagnostic date du 4 septembre. */
-    var rec = suiviDe(e).constat;
+    var rec = suiviDe(e.id).constat;
     if (rec && rec.cle) {
       var c = constatDe(rec.cle);
       if (c) {
@@ -218,7 +218,7 @@
                  releve: true };
       }
     }
-    var d = suiviDe(e).taches || {};
+    var d = suiviDe(e.id).taches || {};
     for (var i = 0; i < e.taches.length; i++) {
       var t = d[e.taches[i].id];
       if (t && t.e === "bloque") {
@@ -250,7 +250,7 @@
 
   function sautee(e, atteints) {
     if (horsProgramme(e) || bilanEcole(e).fini) return false;
-    var rec = suiviDe(e).constat;
+    var rec = suiviDe(e.id).constat;
     if (rec && rec.cle === "prete") return false;   /* la contrainte est levée */
     var dt = datePassage(e.id);
     var auj = aujourdhui();
@@ -3619,6 +3619,115 @@
       "pour réalisée dès qu'un agent l'a pointée dans sa fiche."));
   }
 
+  /* ---------------- écoles rajoutées ----------------
+     Le programme n'est pas resté celui du planning initial. Au fil des tournées,
+     des établissements qui n'y figuraient pas ont été relevés puis versés au
+     programme : l'opération conjointe Cadre de Vie / Commune / SONAGED des 28 et
+     29 septembre en a traité quatre d'un coup, les autres ont été découverts en
+     allant d'une école à l'autre, jusqu'aux cases des tout-petits de Ndorong et
+     de Touba Ndorong début octobre.
+     Noyées dans la liste générale, elles n'y sont qu'une mention en petit — et
+     c'est pourtant d'elles qu'on parle quand la Commune demande pourquoi le
+     programme est passé de quarante à cinquante établissements. Cet onglet les
+     isole : combien, lesquelles, et où elles en sont. */
+  function rendreAjoutees() {
+    var v = $("#vueAjoutees");
+    v.innerHTML = "";
+    var lot = lotPlanning();
+    var ajoutees = lot.filter(function (e) { return e.ajoute; });
+    var auProg = lot.filter(function (e) { return !horsProgramme(e); });
+    var nAj = nbEtab(ajoutees), nProg = nbEtab(auProg);
+    var soldees = ajoutees.filter(function (e) { return bilanEcole(e).fini; });
+    var nSold = nbEtab(soldees);
+    var a = agreger(ajoutees);
+    var sansDiag = ajoutees.filter(function (e) { return !e.taches.length; }).length;
+
+    var sit = el("div", "situation");
+    var sh = el("div", "situation-haut");
+    sh.appendChild(el("span", "situation-jour", "Écoles rajoutées au fil des activités"));
+    sh.appendChild(el("span", "situation-jn", nAj + " sur " + nProg));
+    sit.appendChild(sh);
+
+    if (!ajoutees.length) {
+      sit.appendChild(el("p", "situation-resume",
+        "Aucun établissement n'a été versé au programme" +
+        (S.uc ? " en UC " + S.uc : "") + " après le planning initial."));
+      v.appendChild(sit);
+      return;
+    }
+
+    /* La phrase que le présentateur peut lire telle quelle : d'où l'on vient,
+       où l'on en est. Le programme initial se déduit — il n'est écrit nulle part
+       dans les données, et une constante se périmerait au premier ajout. */
+    var resume = el("p", "situation-resume");
+    resume.appendChild(el("b", null, nAj + (nAj > 1 ? " établissements" : " établissement") +
+      " sur les " + nProg + " du programme"));
+    resume.appendChild(document.createTextNode(
+      " n'étaient pas au planning initial" + (S.uc ? " de l'UC " + S.uc : "") +
+      " : il en comptait " + (nProg - nAj) + ". " +
+      (nSold === nAj ? "Tous sont soldés."
+        : nSold ? nSold + (nSold > 1 ? " sont soldés" : " est soldé") + ", " +
+                  (nAj - nSold) + (nAj - nSold > 1 ? " restent à traiter." : " reste à traiter.")
+                : "Aucun n'est encore soldé.")));
+    sit.appendChild(resume);
+    sit.appendChild(el("p", "situation-src",
+      "Une école rajoutée prend le rang suivant de son unité communale et porte la " +
+      "mention « ajoutée » dans le planning. Elle se pointe, se date et se photographie " +
+      "comme les autres." + (S.uc ? " Vue restreinte à l'UC " + S.uc + "." : "")));
+    v.appendChild(sit);
+
+    var k = el("div", "kpis");
+    [[nAj + "/" + nProg, "Écoles rajoutées", "",
+      nProg ? pourcent(nAj, nProg) + " % du programme" : ""],
+     [nSold + "/" + nAj, "Soldées parmi elles", nSold === nAj ? "vert" : "",
+      pourcent(nSold, nAj) + " %"],
+     [String(nAj - nSold), "Restent à traiter", "", ""],
+     [(a.total ? pourcent(a.faits, a.total) : 0) + " %", "Interventions réalisées", "",
+      /* Une école versée avant que son diagnostic ne soit arrêté ne porte aucune
+         intervention : sans cette mention, « 100 % » voisine avec « 1 reste à
+         traiter » et le tableau semble se contredire. */
+      a.total ? a.faits + " sur " + a.total +
+                (sansDiag ? " · " + sansDiag + " sans diagnostic arrêté" : "")
+              : "aucun diagnostic arrêté"]
+    ].forEach(function (p) {
+      var c = el("div", "kpi" + (p[2] ? " kpi-" + p[2] : ""));
+      c.appendChild(el("div", "n mono", p[0]));
+      c.appendChild(el("div", "l", p[1]));
+      if (p[3]) c.appendChild(el("div", "s", p[3]));
+      k.appendChild(c);
+    });
+    v.appendChild(k);
+
+    /* Rangées par unité communale, puis par rang : c'est l'ordre dans lequel les
+       équipes les rencontrent, et celui du planning. */
+    [1, 2, 3].forEach(function (uc) {
+      var l = ajoutees.filter(function (e) { return e.uc === uc; }).sort(parOrdre);
+      if (!l.length) return;
+      var f = nbEtab(l.filter(function (e) { return bilanEcole(e).fini; }));
+      var bloc = el("div", "groupe-jour");
+      var t = el("div", "groupe-titre");
+      t.appendChild(el("span", null, "UC " + uc));
+      t.appendChild(el("em", null, nbEtab(l) + (nbEtab(l) > 1 ? " écoles rajoutées · " : " école rajoutée · ") +
+        f + " soldée" + (f > 1 ? "s" : "")));
+      bloc.appendChild(t);
+      l.forEach(function (e) {
+        /* Le motif ne s'affiche que s'il a quelque chose à dire : une école dont
+           le diagnostic n'est pas arrêté porte déjà « à diagnostiquer » en fin de
+           ligne, et « motif à préciser » n'y ajoute qu'un reproche. */
+        bloc.appendChild(ligneEcole(e, { rang: true, date: true,
+          motif: !bilanEcole(e).fini && e.taches.length > 0 }));
+      });
+      v.appendChild(bloc);
+    });
+
+    var hors = lot.filter(horsProgramme);
+    v.appendChild(el("p", "note-pied",
+      "Ne figurent ici que les établissements versés au programme de nettoiement. " +
+      (hors.length ? hors.length + " autres ont été relevés lors des tournées sans y entrer : " +
+                     "leur intervention revient à un autre service, et ils restent au catalogue."
+                   : "")));
+  }
+
   /* ---------------- navigation ---------------- */
   /* Un seul cran d'historique pour les onglets, pas un par tapotement : quitter
      le Planning en pose un, y revenir le retire. Retour ramène donc au Planning,
@@ -3720,6 +3829,7 @@
     $("#vueCarte").hidden = vue !== "Carte";
     $("#vueBilan").hidden = vue !== "Bilan";
     $("#vueAnalyse").hidden = vue !== "Analyse";
+    $("#vueAjoutees").hidden = vue !== "Ajoutees";
     Array.prototype.forEach.call(document.querySelectorAll(".nav button"), function (b) {
       if (b.getAttribute("data-vue") === vue) b.setAttribute("aria-current", "page");
       else b.removeAttribute("aria-current");
@@ -3734,6 +3844,7 @@
     else if (S.vue === "Ecoles") rendreListe();
     else if (S.vue === "Carte") rendreCarte();
     else if (S.vue === "Analyse") rendreAnalyse();
+    else if (S.vue === "Ajoutees") rendreAjoutees();
     else rendreBilan();
     resoudreNoms();
   }

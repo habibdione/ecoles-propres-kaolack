@@ -1597,6 +1597,11 @@
         mc.appendChild(el("span", null, etab.nature + " · " + etab.quartier));
         if (etab.statut) mc.appendChild(el("span", "code", etab.statut));
         boite.appendChild(mc);
+        if (etab.travaux) {
+          var tv = el("p", null, "Travaux : " + etab.travaux);
+          tv.style.cssText = "font-size:13px;color:var(--texte);margin:9px 0 0;font-weight:600";
+          boite.appendChild(tv);
+        }
         if (etab.besoins) {
           var bs = el("p", null, "Besoins signalés : " + etab.besoins);
           bs.style.cssText = "font-size:13px;color:var(--texte-2);margin:9px 0 0";
@@ -3813,6 +3818,9 @@
     if (c.officiel && c.officiel.toUpperCase() !== c.nom.toUpperCase()) {
       meta.appendChild(el("span", "code", c.officiel));
     }
+    /* Les travaux arrêtés : c'est ce que l'équipe du jour vient faire. Ils
+       passent avant les clichés et les besoins, qui ne font que les documenter. */
+    if (c.travaux) meta.appendChild(el("span", "jeton", c.travaux));
     if (c.photos && c.photos.length) {
       meta.appendChild(el("span", "code", c.photos.length +
         (c.photos.length > 1 ? " clichés" : " cliché")));
@@ -3890,6 +3898,14 @@
       "Le travail ne se répartit plus par unité communale : une seule équipe par jour, " +
       "composée des agents de la SONAGED SA, des agents du Cadre de Vie et des 15 agents " +
       "mis à disposition par le Conseil départemental."));
+    var meca = CM.filter(function (c) { return /canisation/.test(c.travaux || ""); });
+    sit.appendChild(el("p", "situation-resume",
+      "Travaux arrêtés : désherbage et évacuation des déchets partout, " +
+      (meca.length
+        ? "sauf " + meca.map(function (c) { return c.nom; }).join(", ") +
+          (meca.length > 1 ? ", dont les emprises demandent" : ", dont l'emprise demande") +
+          " une mécanisation."
+        : "aucune mécanisation demandée.")));
     sit.appendChild(el("p", "situation-src",
       "Codes provisoires : les tournées ne sont pas arrêtées. " +
       (valides.length < CM.length

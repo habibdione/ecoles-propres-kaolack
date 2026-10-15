@@ -264,6 +264,7 @@ main{padding:var(--e4) var(--e4) 100px}
 .etiq.p1{background:var(--laterite-pale); color:var(--laterite)}
 .etiq.bloq{background:var(--ambre-pale); color:var(--ambre)}
 .etiq.fini{background:var(--vert-pale); color:var(--vert)}
+.etiq.eau{background:var(--eau-pale); color:var(--eau)}
 .vide{padding:44px var(--e4); text-align:center; color:var(--texte-3); font-size:14px}
 
 /* ═══ blocs ═══
@@ -473,6 +474,7 @@ main{padding:var(--e4) var(--e4) 100px}
    l'avancement, anneau pour la priorité, trait pour les lignes du fond. */
 .lg-point{width:9px; height:9px; border-radius:50%}
 .lg-anneau{width:11px; height:11px; border-radius:50%; border:2px solid var(--laterite)}
+.lg-carre{width:9px; height:9px; border-radius:2px}
 .lg-inond{width:11px; height:11px; position:relative; border-radius:50%; background:var(--trait-fort)}
 .lg-inond::after{
   content:""; position:absolute; top:-2px; right:-3px; width:6px; height:6px;
@@ -911,16 +913,24 @@ main{padding:var(--e4) var(--e4) 100px}
   padding-bottom:max(env(safe-area-inset-bottom), 6px);
   box-shadow:0 -1px 14px rgba(18,36,28,.05);
 }
-/* Six onglets sur la largeur d'un téléphone : la barre reste une grille d'égales,
-   le libellé perd un dixième de point pour que « Rajoutées » tienne sans se couper. */
-.nav-inner{max-width:560px; margin:0 auto; display:grid; grid-template-columns:repeat(6,1fr)}
+/* Sept onglets sur la largeur d'un téléphone : la barre reste une grille d'égales,
+   le libellé perd un dixième de point pour que « Rajoutées » tienne sans se couper,
+   et « CM & Lycées » se replie sur deux lignes — la hauteur de la barre ne bouge
+   pas pour autant, les icônes restant alignées en haut de chaque case. */
+.nav-inner{max-width:560px; margin:0 auto; display:grid; grid-template-columns:repeat(7,1fr)}
 .nav button{
-  background:none; border:0; padding:10px 2px 11px; display:flex; flex-direction:column;
-  align-items:center; gap:4px; font-size:9px; font-weight:800; color:var(--texte-3);
-  letter-spacing:.04em; text-transform:uppercase; transition:color .15s;
+  background:none; border:0; padding:10px 1px 11px; display:flex; flex-direction:column;
+  align-items:center; gap:4px; font-size:8.5px; font-weight:800; color:var(--texte-3);
+  letter-spacing:.02em; text-transform:uppercase; transition:color .15s;
+  line-height:1.15; text-align:center;
 }
 .nav button[aria-current="page"]{color:var(--vert)}
 .nav svg{width:21px; height:21px}
+/* Sous 380 px de large, la case d'onglet tombe a 49 px : « Rajoutées » n'y tient
+   plus a 8,5 px. Le libelle se resserre, les icones ne bougent pas. */
+@media (max-width:380px){
+  .nav button{font-size:7.8px; letter-spacing:0}
+}
 
 /* Avis d'ouverture : les écoles du jour, cinq secondes au-dessus de la barre.
    Plein vert, à l'inverse des cartes crème du reste de l'app : on doit le voir
@@ -1163,6 +1173,9 @@ main{padding:var(--e4) var(--e4) 100px}
       <div class="liste" id="liste"></div>
     </section>
 
+    <!-- Second volet : les CM et lycées, qui relèvent du Conseil départemental. -->
+    <section class="vue" id="vueCM" hidden></section>
+
     <section class="vue" id="vueCarte" hidden>
       <div class="carte-cadre">
         <div class="carte-outils">
@@ -1182,6 +1195,14 @@ main{padding:var(--e4) var(--e4) 100px}
               <li><b class="lg-anneau"></b>Priorité 1</li>
               <li><b class="lg-inond"></b>Inondation constatée</li>
               <li><b class="lg-moi"></b>Ma position</li>
+            </ul>
+          </div>
+          <div>
+            <h4>CM et lycées</h4>
+            <ul>
+              <li><b class="lg-point" style="background:var(--eau)"></b>Lycée</li>
+              <li><b class="lg-carre" style="background:var(--laterite)"></b>CM</li>
+              <li><b class="lg-point" style="background:var(--ambre)"></b>Nature à confirmer</li>
             </ul>
           </div>
           <div>
@@ -1219,6 +1240,10 @@ main{padding:var(--e4) var(--e4) 100px}
       <button data-vue="Ecoles">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 4l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21v-6h6v6"/></svg>
         Écoles
+      </button>
+      <button data-vue="CM" title="CM et lycées relevés — volet Conseil départemental">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2 9l10 5 10-5z"/><path d="M6 11.5V17c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.5"/></svg>
+        CM &amp; Lycées
       </button>
       <button data-vue="Carte">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6.5v13L9 17l6 2.5 6-2.5v-13L15 6.5z"/><path d="M9 4v13M15 6.5v13"/></svg>
@@ -1291,6 +1316,7 @@ main{padding:var(--e4) var(--e4) 100px}
 <script src="photos.js"></script>
 <script src="affiches.js"></script>
 <script src="osm.js"></script>
+<script src="cmlycees.js"></script>
 <script src="execution.js"></script>
 <script src="config.js"></script>
 <script src="suivi.js"></script>

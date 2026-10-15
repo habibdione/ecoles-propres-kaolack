@@ -12,6 +12,7 @@
   var ARCHIVE = window.KLPH || {};   // photos des tournées, publiées avec la page
   var AFFICHES = window.KLAF || [];  // affiches « programme du jour » diffusées par la Commune
   var OSM = window.KLOSM || {};      // fond de plan OpenStreetMap, projeté au format SVG
+  var CM = window.KLCM || [];        // CM et lycées relevés — volet Conseil départemental
   var EXEC = (window.KLEX || {}).fiches || {};   // fiches du rapport d'exécution
   var EXEC_META = (window.KLEX || {}).meta || {};
 
@@ -63,6 +64,7 @@
     suivi: {},        // id école -> { taches:{}, obs, photos:[], date, maj }
     attente: {},      // saisies pas encore confirmées par le serveur
     selection: null,  // id école sélectionnée sur la carte
+    selCM: null,      // id CM ou lycée sélectionné sur la carte (volet départemental)
     coche: null,      // programmation groupée : { id école: true }, null hors de ce mode
     cocheDate: "",    // date que la programmation groupée appliquera
     fiche: null,      // id école ouverte
@@ -1407,6 +1409,17 @@
     S.zoom = Math.max(S.zoom, 5);
   }
 
+  /* Cadrer la carte sur un CM ou un lycée relevé : c'est le geste de la liste du
+     volet départemental, « taper une ligne et la voir sur la carte ». */
+  function viserCM(id) {
+    var c = CM.filter(function (x) { return x.id === id; })[0];
+    if (!c) return;
+    S.selCM = id;
+    S.selection = null;
+    S.centre = [PROJ.x(c.lon), PROJ.y(c.lat)];
+    S.zoom = Math.max(S.zoom, 6);
+  }
+
   function recadrer() {
     S.zoom = 1; S.centre = null;
     majViewBox();
@@ -1523,6 +1536,26 @@
       g += "</g>";
       pts.push(g);
     });
+    /* CM et lycées du volet Conseil départemental. Ce sont des relevés, pas des
+       chantiers pointés : ils ne prennent donc aucune couleur d'avancement, et
+       leur forme les distingue des écoles — carré pour un CM, disque cerclé pour
+       un lycée — pour qu'on ne lise pas un relevé comme une école du programme. */
+    CM.forEach(function (c) {
+      var x = PROJ.x(c.lon), y = PROJ.y(c.lat), k = 1 / S.zoom;
+      var teinte = c.nature === "CM" ? "var(--laterite)"
+                 : c.nature === "Lycée" ? "var(--eau)" : "var(--ambre)";
+      var g = '<g class="pt" data-cm="' + c.id + '" data-x="' + x.toFixed(1) + '" data-y="' + y.toFixed(1) +
+        '" transform="translate(' + x.toFixed(1) + ' ' + y.toFixed(1) + ') scale(' + k.toFixed(3) +
+        ')" role="button" tabindex="0" aria-label="' + esc(c.nature + " " + c.nom) + '">';
+      g += '<circle r="34" fill="transparent"/>';
+      if (S.selCM === c.id) g += '<circle r="25" fill="none" stroke="var(--texte)" stroke-width="4"/>';
+      g += c.nature === "CM"
+        ? '<rect x="-11" y="-11" width="22" height="22" rx="4" fill="' + teinte +
+          '" stroke="var(--surface)" stroke-width="3"/>'
+        : '<circle r="11" fill="' + teinte + '" stroke="var(--surface)" stroke-width="3"/>';
+      g += "</g>";
+      pts.push(g);
+    });
     if (S.maPosition) {
       var mx = PROJ.x(S.maPosition[1]).toFixed(1), my = PROJ.y(S.maPosition[0]).toFixed(1);
       pts.push('<g id="maPosition" data-x="' + mx + '" data-y="' + my + '" transform="translate(' + mx +
@@ -1535,7 +1568,8 @@
     Array.prototype.forEach.call(svg.querySelectorAll(".pt"), function (g) {
       g.style.cursor = "pointer";
       var choisir = function () {
-        S.selection = g.getAttribute("data-id");
+        if (g.hasAttribute("data-cm")) { S.selCM = g.getAttribute("data-cm"); S.selection = null; }
+        else { S.selection = g.getAttribute("data-id"); S.selCM = null; }
         rendreCarte(); rendreApercu();
       };
       /* un glissement de carte ne doit pas sélectionner l'école survolée */
@@ -1552,6 +1586,32 @@
     var c = $("#apercu");
     c.innerHTML = "";
     var boite = el("div", "apercu");
+    /* Un relevé du volet départemental : pas de fiche de pointage derrière, donc
+       on dit ce qu'on sait de lui et on propose d'y aller. */
+    if (S.selCM) {
+      var etab = CM.filter(function (x) { return x.id === S.selCM; })[0];
+      if (etab) {
+        boite.appendChild(el("h3", null, etab.nom));
+        var mc = el("div", "ligne-meta");
+        mc.appendChild(el("span", "code mono", etab.id));
+        mc.appendChild(el("span", null, etab.nature + " · " + etab.quartier));
+        if (etab.statut) mc.appendChild(el("span", "code", etab.statut));
+        boite.appendChild(mc);
+        if (etab.besoins) {
+          var bs = el("p", null, "Besoins signalés : " + etab.besoins);
+          bs.style.cssText = "font-size:13px;color:var(--texte-2);margin:9px 0 0";
+          boite.appendChild(bs);
+        }
+        var ac = el("div", "apercu-actions");
+        var bv = el("button", "btn plein large", "Voir la liste");
+        bv.onclick = function () { allerA("CM"); };
+        ac.appendChild(bv);
+        ac.appendChild(boutonItineraire("M'y conduire", [etab], false));
+        boite.appendChild(ac);
+        c.appendChild(boite);
+        return;
+      }
+    }
     if (!S.selection) {
       boite.appendChild(el("h3", null, "Touchez un point pour ouvrir la fiche"));
       boite.appendChild(el("p", null, ecolesFiltrees().length + " établissements affichés · fond de plan hors ligne."))
@@ -3728,6 +3788,122 @@
                    : "")));
   }
 
+  /* ---------------- CM et lycées ----------------
+     Le second volet du programme : les collèges d'enseignement moyen et les
+     lycées, qui ne relèvent pas de la Commune mais du Conseil départemental.
+     Ils ne se pointent pas encore — rien n'est arrêté sur les tournées — donc
+     cet onglet n'est pas un suivi : c'est l'inventaire des relevés, et le moyen
+     d'aller voir chacun sur la carte. Taper une ligne cadre la carte dessus.
+     Source : les relevés GPX versés par build_inventaire.py, puis cmlycees.js. */
+  function ligneCM(c) {
+    var ligne = el("button", "ligne");
+    ligne.type = "button";
+    ligne.onclick = function () { viserCM(c.id); allerA("Carte"); };
+    ligne.appendChild(el("div", "filet" + (c.nature === "CM" ? " p1" : "")));
+
+    var corps = el("div", "ligne-corps");
+    corps.appendChild(el("div", "ligne-nom", c.nom));
+    var meta = el("div", "ligne-meta");
+    meta.appendChild(el("span", "code mono", c.id));
+    meta.appendChild(el("span", null, c.quartier));
+    /* La désignation officielle n'est rappelée que lorsqu'elle diffère du nom
+       relevé sur le terrain — sinon la ligne se répète. */
+    if (c.officiel && c.officiel.toUpperCase() !== c.nom.toUpperCase()) {
+      meta.appendChild(el("span", "code", c.officiel));
+    }
+    if (c.besoins) meta.appendChild(el("span", "motif motif-autre", c.besoins));
+    corps.appendChild(meta);
+    ligne.appendChild(corps);
+
+    var fin = el("div", "ligne-fin");
+    fin.appendChild(el("span", "etiq " + (c.nature === "CM" ? "p1"
+      : c.nature === "Lycée" ? "eau" : "bloq"), c.nature));
+    fin.appendChild(el("span", "ratio a-faire", c.officiel ? "au référentiel" : "à valider"));
+    ligne.appendChild(fin);
+    return ligne;
+  }
+
+  function rendreCM() {
+    var v = $("#vueCM");
+    v.innerHTML = "";
+
+    var sit = el("div", "situation");
+    var sh = el("div", "situation-haut");
+    sh.appendChild(el("span", "situation-jour", "CM et lycées relevés"));
+    sh.appendChild(el("span", "situation-jn", CM.length + (CM.length > 1 ? " relevés" : " relevé")));
+    sit.appendChild(sh);
+
+    if (!CM.length) {
+      sit.appendChild(el("p", "situation-resume",
+        "Aucun CM ni lycée n'a encore été relevé. Les relevés GPS déposés dans " +
+        "ETABLISSEMENTS/LYCEE ET CM alimentent cet onglet."));
+      v.appendChild(sit);
+      return;
+    }
+
+    var nat = function (n) { return CM.filter(function (c) { return c.nature === n; }); };
+    var lyc = nat("Lycée"), cm = nat("CM");
+    var autres = CM.filter(function (c) { return c.nature !== "Lycée" && c.nature !== "CM"; });
+    var valides = CM.filter(function (c) { return c.officiel; });
+    var dates = CM.map(function (c) { return c.date; }).filter(Boolean).sort();
+
+    var resume = el("p", "situation-resume");
+    resume.appendChild(el("b", null, CM.length + (CM.length > 1 ? " établissements relevés" : " établissement relevé")));
+    resume.appendChild(document.createTextNode(
+      " au GPS" + (dates.length ? ", le " + dateLongue(dates[dates.length - 1]).toLowerCase() : "") +
+      " : " + lyc.length + (lyc.length > 1 ? " lycées" : " lycée") + ", " +
+      cm.length + " CM" + (autres.length ? " et " + autres.length +
+      (autres.length > 1 ? " établissements dont la nature reste à confirmer" : " établissement dont la nature reste à confirmer") : "") +
+      ". Ce volet revient au Conseil départemental, pas à la Commune."));
+    sit.appendChild(resume);
+    /* L'organisation change avec le volet : les écoles se traitaient à trois
+       unités communales en parallèle, les CM et lycées se traiteront à une seule
+       équipe par jour — d'où l'absence de filtre par UC sur cet onglet. */
+    sit.appendChild(el("p", "situation-resume",
+      "Le travail ne se répartit plus par unité communale : une seule équipe par jour, " +
+      "composée des agents de la SONAGED SA, des agents du Cadre de Vie et des 15 agents " +
+      "mis à disposition par le Conseil départemental."));
+    sit.appendChild(el("p", "situation-src",
+      "Codes provisoires : les tournées ne sont pas arrêtées. " +
+      (valides.length < CM.length
+        ? (CM.length - valides.length) + " relevés sur " + CM.length +
+          " ne figurent pas au référentiel national — " +
+          "les CM publics en sont absents, leur liste officielle reste à obtenir du Conseil " +
+          "départemental ou de l'IEF."
+        : "Tous les relevés se recoupent avec le référentiel national.")));
+    v.appendChild(sit);
+
+    var k = el("div", "kpis");
+    [[String(lyc.length), "Lycées", "", "relevés au GPS"],
+     [String(cm.length), "CM", "", "relevés au GPS"],
+     [valides.length + "/" + CM.length, "Au référentiel", valides.length === CM.length ? "vert" : "",
+      autres.length ? autres.length + " de nature à confirmer" : "désignation recoupée"]
+    ].forEach(function (p) {
+      var c = el("div", "kpi" + (p[2] ? " kpi-" + p[2] : ""));
+      c.appendChild(el("div", "n mono", p[0]));
+      c.appendChild(el("div", "l", p[1]));
+      if (p[3]) c.appendChild(el("div", "s", p[3]));
+      k.appendChild(c);
+    });
+    v.appendChild(k);
+
+    [["Lycées", lyc], ["CM", cm], ["Nature à confirmer", autres]].forEach(function (g) {
+      if (!g[1].length) return;
+      var bloc = el("div", "groupe-jour");
+      var t = el("div", "groupe-titre");
+      t.appendChild(el("span", null, g[0]));
+      t.appendChild(el("em", null, g[1].length + (g[1].length > 1 ? " établissements" : " établissement")));
+      bloc.appendChild(t);
+      g[1].forEach(function (c) { bloc.appendChild(ligneCM(c)); });
+      v.appendChild(bloc);
+    });
+
+    v.appendChild(el("p", "note-pied",
+      "Touchez une ligne pour la voir sur la carte. Les besoins notés sur le terrain " +
+      "sont repris tels quels. Positions relevées au GPS (Geo Tracker), quartiers " +
+      "rattachés par croisement avec le découpage de la commune."));
+  }
+
   /* ---------------- navigation ---------------- */
   /* Un seul cran d'historique pour les onglets, pas un par tapotement : quitter
      le Planning en pose un, y revenir le retire. Retour ramène donc au Planning,
@@ -3826,6 +4002,10 @@
     S.vue = vue;
     $("#vuePlanning").hidden = vue !== "Planning";
     $("#vueEcoles").hidden = vue !== "Ecoles";
+    $("#vueCM").hidden = vue !== "CM";
+    /* Une seule équipe par jour sur le volet départemental : pas d'unités
+       communales à choisir, le sélecteur n'y filtrerait rien. */
+    $("#filtresUC").hidden = vue === "CM";
     $("#vueCarte").hidden = vue !== "Carte";
     $("#vueBilan").hidden = vue !== "Bilan";
     $("#vueAnalyse").hidden = vue !== "Analyse";
@@ -3842,6 +4022,7 @@
     construireFiltres();
     if (S.vue === "Planning") rendrePlanning();
     else if (S.vue === "Ecoles") rendreListe();
+    else if (S.vue === "CM") rendreCM();
     else if (S.vue === "Carte") rendreCarte();
     else if (S.vue === "Analyse") rendreAnalyse();
     else if (S.vue === "Ajoutees") rendreAjoutees();

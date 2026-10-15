@@ -581,6 +581,11 @@ main{padding:var(--e4) var(--e4) 100px}
 
 /* galerie */
 .photos{display:grid; grid-template-columns:repeat(auto-fill,minmax(84px,1fr)); gap:var(--e2); margin-top:10px}
+/* Clichés d'un relevé du volet départemental, posés sous leur ligne dans la
+   liste : vignettes plus petites, pour qu'une ligne et ses photos tiennent d'un
+   coup d'œil. */
+.photos-releve{padding:0 12px 12px; background:var(--surface)}
+.photos-releve .photos{margin-top:0; grid-template-columns:repeat(auto-fill,minmax(68px,1fr))}
 .vignette{
   position:relative; aspect-ratio:1; border-radius:var(--r-s); overflow:hidden;
   background:var(--creux); border:0; padding:0; cursor:pointer; display:block;

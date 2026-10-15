@@ -1602,6 +1602,8 @@
           bs.style.cssText = "font-size:13px;color:var(--texte-2);margin:9px 0 0";
           boite.appendChild(bs);
         }
+        var vign = photosCM(etab);
+        if (vign) boite.appendChild(vign);
         var ac = el("div", "apercu-actions");
         var bv = el("button", "btn plein large", "Voir la liste");
         bv.onclick = function () { allerA("CM"); };
@@ -3811,6 +3813,10 @@
     if (c.officiel && c.officiel.toUpperCase() !== c.nom.toUpperCase()) {
       meta.appendChild(el("span", "code", c.officiel));
     }
+    if (c.photos && c.photos.length) {
+      meta.appendChild(el("span", "code", c.photos.length +
+        (c.photos.length > 1 ? " clichés" : " cliché")));
+    }
     if (c.besoins) meta.appendChild(el("span", "motif motif-autre", c.besoins));
     corps.appendChild(meta);
     ligne.appendChild(corps);
@@ -3821,6 +3827,27 @@
     fin.appendChild(el("span", "ratio a-faire", c.officiel ? "au référentiel" : "à valider"));
     ligne.appendChild(fin);
     return ligne;
+  }
+
+  /* Les clichés d'avant intervention d'un relevé : la même grille et la même
+     visionneuse que pour les écoles, sans l'ajout ni la suppression — ces photos
+     viennent du terrain, pas de l'app. */
+  function photosCM(c) {
+    var liste = (c.photos || []).map(function (f) { return { url: f, ph: "avant", archive: true }; });
+    if (!liste.length) return null;
+    var grille = el("div", "photos");
+    liste.forEach(function (ph, i) {
+      var v = el("button", "vignette");
+      v.type = "button";
+      var img = el("img");
+      img.src = ph.url;
+      img.alt = "Avant intervention — " + c.nom;
+      img.loading = "lazy";
+      v.appendChild(img);
+      v.onclick = function (ev) { ev.stopPropagation(); ouvrirVisionneuse(c, liste, i); };
+      grille.appendChild(v);
+    });
+    return grille;
   }
 
   function rendreCM() {
@@ -3877,7 +3904,9 @@
     [[String(lyc.length), "Lycées", "", "relevés au GPS"],
      [String(cm.length), "CM", "", "relevés au GPS"],
      [valides.length + "/" + CM.length, "Au référentiel", valides.length === CM.length ? "vert" : "",
-      autres.length ? autres.length + " de nature à confirmer" : "désignation recoupée"]
+      valides.length === CM.length ? "désignation recoupée"
+        : (CM.length - valides.length) + " à valider" +
+          (autres.length ? ", " + autres.length + " de nature à confirmer" : "")]
     ].forEach(function (p) {
       var c = el("div", "kpi" + (p[2] ? " kpi-" + p[2] : ""));
       c.appendChild(el("div", "n mono", p[0]));
@@ -3894,7 +3923,19 @@
       t.appendChild(el("span", null, g[0]));
       t.appendChild(el("em", null, g[1].length + (g[1].length > 1 ? " établissements" : " établissement")));
       bloc.appendChild(t);
-      g[1].forEach(function (c) { bloc.appendChild(ligneCM(c)); });
+      g[1].forEach(function (c) {
+        bloc.appendChild(ligneCM(c));
+        /* Les clichés d'avant intervention sous leur ligne : c'est l'état dans
+           lequel l'équipe a trouvé l'établissement, et la pièce qu'on montrera
+           au Conseil départemental. Hors du bouton — une vignette est déjà un
+           bouton, et un bouton ne s'imbrique pas. */
+        var vign = photosCM(c);
+        if (vign) {
+          var cadre = el("div", "photos-releve");
+          cadre.appendChild(vign);
+          bloc.appendChild(cadre);
+        }
+      });
       v.appendChild(bloc);
     });
 
